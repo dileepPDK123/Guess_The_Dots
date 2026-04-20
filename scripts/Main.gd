@@ -117,6 +117,11 @@ var _campaign_layer: Control
 var haptics_enabled: bool = true
 var _cfg := ConfigFile.new()
 
+# ── Wordle board ──────────────────────────────────────────────────────────────
+var _board_rows: Array = []           # Array of {container, slots, pips, index}
+var _active_row_index: int = 0
+var _board_built: bool = false
+
 # =============================================================================
 func _process(delta: float) -> void:
 	if not _blitz_timer_active or not round_active:
@@ -364,8 +369,10 @@ func start_new_game(mode: GameMode = GameMode.CLASSIC, campaign_level: int = 1) 
 	current_guess.resize(slots_needed)
 	for i in range(slots_needed):
 		current_guess[i] = -1
-	_build_slots()
-	_rebuild_history()
+	_board_built = false
+	_board_rows.clear()
+	_active_row_index = 0
+	_build_wordle_board()
 	_update_palette_selection()
 	_refresh_guess_ui()
 	_update_header_text("TAP A COLOR TO FILL THE NEXT SLOT, OR DRAG IT IN.")
@@ -457,6 +464,131 @@ func _build_slots() -> void:
 		slot.slot_pressed_for_assign.connect(_on_slot_pressed_for_assign)
 		slots_container.add_child(slot)
 		slot_buttons.append(slot)
+
+func _build_wordle_board() -> void:
+	# Hide old panels (keep @onready refs valid — do NOT queue_free)
+	if has_node("GameLayer/GameVBox/HistoryPanel"):
+		$GameLayer/GameVBox/HistoryPanel.hide()
+
+	# Remove previously built board if any
+	if has_node("GameLayer/GameVBox/BoardVBox"):
+		$GameLayer/GameVBox/BoardVBox.queue_free()
+		await get_tree().process_frame
+
+	var total_rows := MAX_GUESSES if current_mode != GameMode.ZEN else 10
+	var board_vbox := VBoxContainer.new()
+	board_vbox.name = "BoardVBox"
+	board_vbox.add_theme_constant_override("separation", 6)
+
+	var game_vbox := $GameLayer/GameVBox as VBoxContainer
+	game_vbox.add_child(board_vbox)
+	game_vbox.move_child(board_vbox, 1)  # after header (index 0)
+
+	_board_rows.clear()
+	for i in range(total_rows):
+		var row_data := _build_board_row(i)
+		board_vbox.add_child(row_data.container)
+		_board_rows.append(row_data)
+
+	_active_row_index = guess_history.size()
+	_connect_active_row_signals()
+	_refresh_board_states()
+	_board_built = true
+
+func _build_board_row(row_index: int) -> Dictionary:
+	var hbox := HBoxContainer.new()
+	hbox.name = "BoardRow%d" % row_index
+	hbox.add_theme_constant_override("separation", 6)
+	hbox.alignment = BoxContainer.ALIGNMENT_CENTER
+
+	var slots: Array = []
+	for s in range(slots_needed):
+		var slot := SlotButton.new()
+		slot.slot_index = s
+		slot.custom_minimum_size = Vector2(56, 56)
+		hbox.add_child(slot)
+		slots.append(slot)
+
+	# Pip container (feedback dots, right side)
+	var pip_hbox := HBoxContainer.new()
+	pip_hbox.add_theme_constant_override("separation", 3)
+	for _p in range(slots_needed):
+		var pip := ColorRect.new()
+		pip.custom_minimum_size = Vector2(10, 10)
+		pip.color = C_PIP_EMPTY
+		pip_hbox.add_child(pip)
+	hbox.add_child(pip_hbox)
+
+	return {"container": hbox, "slots": slots, "pips": pip_hbox, "index": row_index}
+
+func _connect_active_row_signals() -> void:
+	if _active_row_index >= _board_rows.size():
+		return
+	var active_slots: Array = _board_rows[_active_row_index].slots
+	# Reassign slot_buttons so all existing handlers (_refresh_guess_ui etc.) work
+	slot_buttons = active_slots
+	for s in range(active_slots.size()):
+		var slot: SlotButton = active_slots[s]
+		slot.slot_index = s
+		# Disconnect existing connections first to avoid duplicates
+		if slot.color_dropped.is_connected(_on_slot_color_dropped):
+			slot.color_dropped.disconnect(_on_slot_color_dropped)
+		if slot.slot_pressed_for_assign.is_connected(_on_slot_pressed_for_assign):
+			slot.slot_pressed_for_assign.disconnect(_on_slot_pressed_for_assign)
+		slot.color_dropped.connect(_on_slot_color_dropped)
+		slot.slot_pressed_for_assign.connect(_on_slot_pressed_for_assign)
+
+func _refresh_board_states() -> void:
+	for i in range(_board_rows.size()):
+		var row: Dictionary = _board_rows[i]
+		if i < _active_row_index:
+			_apply_past_row(row, guess_history[i])
+		elif i == _active_row_index:
+			_apply_active_row(row)
+		else:
+			_apply_future_row(row)
+
+func _apply_past_row(row: Dictionary, item: Dictionary) -> void:
+	# item format: {"values": Array[int], "exact": int, "misplaced": int}
+	var guess: Array = item["values"]
+	var exact: int = int(item["exact"])
+	var misplaced: int = int(item["misplaced"])
+	var slots: Array = row.slots
+	for s in range(slots.size()):
+		var color := PALETTE[int(guess[s])]["color"] as Color
+		(slots[s] as SlotButton).set_filled_visual(color, "")
+		(slots[s] as Control).modulate.a = 1.0
+	_update_pips(row.pips, exact, misplaced)
+
+func _apply_active_row(row: Dictionary) -> void:
+	var slots: Array = row.slots
+	for s in range(slots.size()):
+		(slots[s] as Control).modulate.a = 1.0
+		if s < current_guess.size() and current_guess[s] != -1:
+			var color := PALETTE[current_guess[s]]["color"] as Color
+			(slots[s] as SlotButton).set_filled_visual(color, "")
+		else:
+			(slots[s] as SlotButton).set_empty_visual()
+
+func _apply_future_row(row: Dictionary) -> void:
+	for slot in row.slots:
+		(slot as SlotButton).set_empty_visual()
+		(slot as Control).modulate.a = 0.2
+
+func _update_pips(pip_container: HBoxContainer, exact: int, misplaced: int) -> void:
+	var pips := pip_container.get_children()
+	var idx := 0
+	for _e in range(exact):
+		if idx < pips.size():
+			(pips[idx] as ColorRect).color = C_PIP_EXACT
+			idx += 1
+	for _m in range(misplaced):
+		if idx < pips.size():
+			(pips[idx] as ColorRect).color = C_PIP_MISPLACE
+			idx += 1
+	while idx < pips.size():
+		(pips[idx] as ColorRect).color = C_PIP_EMPTY
+		idx += 1
 
 # =============================================================================
 # UI refresh
@@ -601,8 +733,10 @@ func _on_submit_pressed() -> void:
 	})
 	_vibrate(35)
 	SoundManager.play("submit")
-	_rebuild_history()
-	_scroll_history_to_bottom()
+	_active_row_index = guess_history.size()
+	if _active_row_index < _board_rows.size():
+		_connect_active_row_signals()
+	_refresh_board_states()
 
 	# Sound feedback on result
 	var ex := int(result["exact"])
