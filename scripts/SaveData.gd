@@ -159,10 +159,12 @@ func load_data() -> void:
 	guess_distribution_easy    = _cfg.get_value("stats", "guess_dist_easy",    [0,0,0,0,0,0,0,0,0,0])
 
 	# One-time migration: pull haptics from old settings.cfg if present
-	var old_cfg := ConfigFile.new()
-	if old_cfg.load("user://settings.cfg") == OK:
-		haptics_enabled_migrated = old_cfg.get_value("settings", "haptics", true)
-		_cfg.set_value("settings", "haptics_migrated", true)
+	if not _cfg.get_value("settings", "haptics_migrated", false):
+		var old_cfg := ConfigFile.new()
+		if old_cfg.load("user://settings.cfg") == OK:
+			haptics_enabled_migrated = old_cfg.get_value("settings", "haptics", true)
+			_cfg.set_value("settings", "haptics_migrated", true)
+			_cfg.save(SAVE_PATH)
 
 func save() -> void:
 	# Progression
