@@ -169,7 +169,6 @@ func _ready() -> void:
 	# Tutorial
 	tutorial_layer.tutorial_finished.connect(_on_tutorial_finished)
 
-	_apply_hex_background()
 	_build_palette()
 	_build_mode_select()
 
@@ -218,87 +217,71 @@ func _vibrate_lose() -> void:
 		Input.vibrate_handheld(180)
 
 # =============================================================================
-# NEURAL GRID theme
+# Pastel theme
 # =============================================================================
 func _apply_theme() -> void:
-	var t := Theme.new()
+	# Background: pastel gradient via a full-screen ColorRect
+	if not has_node("BgRect"):
+		var bg := ColorRect.new()
+		bg.name = "BgRect"
+		bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		# Use top color as solid fill; true gradient requires GradientTexture2D
+		bg.color = C_BG_TOP
+		add_child(bg)
+		move_child(bg, 0)
+	else:
+		($BgRect as ColorRect).color = C_BG_TOP
 
-	# ── PanelContainer ──────────────────────────────────────────────────────
-	t.set_stylebox("panel", "PanelContainer", _make_panel_style(C_PANEL))
+	# Style submit button as CTA (pink gradient approximated with solid fill)
+	var cta_style := StyleBoxFlat.new()
+	cta_style.bg_color = C_CTA_FROM
+	cta_style.corner_radius_top_left    = 14
+	cta_style.corner_radius_top_right   = 14
+	cta_style.corner_radius_bottom_left  = 14
+	cta_style.corner_radius_bottom_right = 14
+	cta_style.shadow_color = Color(0.957, 0.447, 0.714, 0.35)
+	cta_style.shadow_size  = 14
+	submit_button.add_theme_stylebox_override("normal", cta_style)
+	submit_button.add_theme_color_override("font_color", Color.WHITE)
 
-	# ── Button factory ──────────────────────────────────────────────────────
-	var make_btn := func(bg: Color, border_a: float) -> StyleBoxFlat:
-		var s := StyleBoxFlat.new()
-		s.bg_color = bg
-		s.corner_radius_top_left     = 14
-		s.corner_radius_top_right    = 14
-		s.corner_radius_bottom_right = 14
-		s.corner_radius_bottom_left  = 14
-		s.border_width_left   = 1
-		s.border_width_top    = 1
-		s.border_width_right  = 1
-		s.border_width_bottom = 1
-		s.border_color = Color(0.00, 0.90, 1.00, border_a)
-		return s
+	# Secondary button style for clear/undo/hint
+	var sec_style := StyleBoxFlat.new()
+	sec_style.bg_color = Color(1.0, 1.0, 1.0, 0.75)
+	sec_style.border_color = Color(0.980, 0.659, 0.831, 0.3)
+	sec_style.border_width_left   = 1
+	sec_style.border_width_right  = 1
+	sec_style.border_width_top    = 1
+	sec_style.border_width_bottom = 1
+	sec_style.corner_radius_top_left    = 10
+	sec_style.corner_radius_top_right   = 10
+	sec_style.corner_radius_bottom_left  = 10
+	sec_style.corner_radius_bottom_right = 10
+	for btn in [clear_button, undo_button, hint_button]:
+		btn.add_theme_stylebox_override("normal", sec_style.duplicate())
+		btn.add_theme_color_override("font_color", C_TEXT_ACTION)
 
-	t.set_stylebox("normal",   "Button", make_btn.call(Color(0.06, 0.10, 0.19, 1.0), 0.22))
-	t.set_stylebox("hover",    "Button", make_btn.call(Color(0.10, 0.18, 0.32, 1.0), 0.55))
-	t.set_stylebox("pressed",  "Button", make_btn.call(Color(0.03, 0.06, 0.12, 1.0), 0.14))
-	t.set_stylebox("focus",    "Button", make_btn.call(Color(0.06, 0.10, 0.19, 1.0), 0.22))
-	t.set_stylebox("disabled", "Button", make_btn.call(Color(0.04, 0.07, 0.13, 0.50), 0.06))
-	# TODO: update to pastel
-	#t.set_color("font_color",          "Button", C_WHITE)
-	t.set_color("font_hover_color",    "Button", Color(1.00, 1.00, 1.00, 1.00))
-	# TODO: update to pastel
-	#t.set_color("font_pressed_color",  "Button", C_MUTED)
-	t.set_color("font_disabled_color", "Button", Color(0.35, 0.40, 0.52, 0.60))
+	# Text colors
+	for lbl in [round_info_label, guess_counter_label, header_title_label]:
+		lbl.add_theme_color_override("font_color", C_TEXT_PRIMARY)
+	status_label.add_theme_color_override("font_color", C_TEXT_SECONDARY)
 
-	# ── CheckButton ─────────────────────────────────────────────────────────
-	# TODO: update to pastel
-	#t.set_color("font_color",       "CheckButton", C_WHITE)
-	t.set_color("font_hover_color", "CheckButton", Color(1.00, 1.00, 1.00, 1.0))
-
-	# ── Label ───────────────────────────────────────────────────────────────
-	# TODO: update to pastel
-	#t.set_color("font_color", "Label", C_WHITE)
-
-	# ── HSeparator ──────────────────────────────────────────────────────────
-	var sep := StyleBoxFlat.new()
-	sep.bg_color = Color(0.00, 0.90, 1.00, 0.12)
-	t.set_stylebox("separator", "HSeparator", sep)
-	t.set_constant("separation", "HSeparator", 2)
-
-	# ── ScrollContainer ─────────────────────────────────────────────────────
-	t.set_stylebox("panel", "ScrollContainer", StyleBoxEmpty.new())
-
-	self.theme = t
-
-	# Haptics initial state
-	haptics_toggle.button_pressed = haptics_enabled
-	haptics_toggle.text = "ON" if haptics_enabled else "OFF"
-
-	# Style the submit button as a magenta CTA
-	_style_cta_button(submit_button)
-	_style_cta_button(new_game_button)
-
-func _style_cta_button(btn: Button) -> void:
-	var make_cta := func(bg: Color, border_a: float) -> StyleBoxFlat:
-		var s := StyleBoxFlat.new()
-		s.bg_color = bg
-		s.corner_radius_top_left     = 14
-		s.corner_radius_top_right    = 14
-		s.corner_radius_bottom_right = 14
-		s.corner_radius_bottom_left  = 14
-		s.border_width_left   = 1
-		s.border_width_top    = 1
-		s.border_width_right  = 1
-		s.border_width_bottom = 1
-		s.border_color = Color(1.00, 0.00, 0.43, border_a)
-		return s
-	btn.add_theme_stylebox_override("normal",  make_cta.call(Color(0.30, 0.00, 0.18, 1.0), 0.70))
-	btn.add_theme_stylebox_override("hover",   make_cta.call(Color(0.45, 0.00, 0.27, 1.0), 0.90))
-	btn.add_theme_stylebox_override("pressed", make_cta.call(Color(0.18, 0.00, 0.11, 1.0), 0.50))
-	btn.add_theme_stylebox_override("focus",   make_cta.call(Color(0.30, 0.00, 0.18, 1.0), 0.70))
+func _style_panel_glass(panel: PanelContainer) -> void:
+	if panel == null:
+		return
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = C_PANEL
+	sb.border_color = C_PANEL_BORDER
+	sb.border_width_left   = 1
+	sb.border_width_right  = 1
+	sb.border_width_top    = 1
+	sb.border_width_bottom = 1
+	sb.corner_radius_top_left    = 16
+	sb.corner_radius_top_right   = 16
+	sb.corner_radius_bottom_left  = 16
+	sb.corner_radius_bottom_right = 16
+	sb.shadow_color = Color(0.655, 0.447, 0.714, 0.10)
+	sb.shadow_size  = 16
+	panel.add_theme_stylebox_override("panel", sb)
 
 # =============================================================================
 # Vocabulary — rename static labels to NEURAL GRID copy
@@ -1218,17 +1201,6 @@ func _filled_slot_count() -> int:
 		if value != -1:
 			count += 1
 	return count
-
-# =============================================================================
-# Hex grid background
-# =============================================================================
-func _apply_hex_background() -> void:
-	var shader := load("res://shaders/hex_grid.gdshader") as Shader
-	if not shader:
-		return
-	var mat := ShaderMaterial.new()
-	mat.shader = shader
-	$Background.material = mat
 
 # =============================================================================
 # Mode Select overlay
