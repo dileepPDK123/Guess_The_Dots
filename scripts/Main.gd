@@ -594,6 +594,37 @@ func _update_pips(pip_container: HBoxContainer, exact: int, misplaced: int) -> v
 		(pips[idx] as ColorRect).color = C_PIP_EMPTY
 		idx += 1
 
+func _flip_row_reveal(row: Dictionary, item: Dictionary) -> void:
+	var slots: Array = row.slots
+	var guess: Array = item["values"]
+	var exact: int = int(item["exact"])
+	var misplaced: int = int(item["misplaced"])
+	var stagger_sec := 0.08
+
+	for s in range(slots.size()):
+		var slot := slots[s] as Control
+		var ci := int(guess[s])
+		if ci < 0 or ci >= PALETTE.size():
+			ci = 0
+		var dot_color := PALETTE[ci]["color"] as Color
+
+		# Phase 1: rotate 0 → 90 degrees
+		var tw1 := create_tween()
+		tw1.tween_property(slot, "rotation_degrees", 90.0, 0.1).set_trans(Tween.TRANS_SINE)
+		await tw1.finished
+		(slot as SlotButton).set_filled_visual(dot_color, "")
+
+		# Phase 2: rotate 90 → 0 degrees
+		var tw2 := create_tween()
+		tw2.tween_property(slot, "rotation_degrees", 0.0, 0.1).set_trans(Tween.TRANS_SINE)
+		await tw2.finished
+
+		if s < slots.size() - 1:
+			await get_tree().create_timer(stagger_sec).timeout
+
+	# Update pips after all flips
+	_update_pips(row.pips, exact, misplaced)
+
 # =============================================================================
 # UI refresh
 # =============================================================================
@@ -737,6 +768,13 @@ func _on_submit_pressed() -> void:
 	})
 	_vibrate(35)
 	SoundManager.play("submit")
+
+	# Animate the submitted row before advancing state
+	var submitted_row_index := _active_row_index
+	round_active = false
+	await _flip_row_reveal(_board_rows[submitted_row_index], guess_history.back())
+	round_active = true
+
 	_active_row_index = guess_history.size()
 	if _active_row_index < _board_rows.size():
 		_connect_active_row_signals()
