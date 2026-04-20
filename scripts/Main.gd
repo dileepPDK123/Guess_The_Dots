@@ -20,16 +20,22 @@ const SETTINGS_PATH       := "user://settings.cfg"
 # Active per-game values (set by start_new_game based on mode)
 var MAX_GUESSES: int = 10
 
-# ── NEURAL GRID color palette ────────────────────────────────────────────────
-const C_BG           := Color(0.016, 0.012, 0.039, 1.0)   # deep void
-const C_PANEL        := Color(0.039, 0.059, 0.118, 0.95)  # dark glass
-const C_PANEL_BORDER := Color(0.00, 0.90, 1.00, 0.32)     # cyan neon rim
-const C_ACCENT       := Color(1.00, 0.00, 0.43, 1.0)      # magenta CTA
-const C_GOLD         := Color(1.00, 0.84, 0.00, 1.0)      # gold score
-const C_SUCCESS      := Color(0.00, 1.00, 0.53, 1.0)      # green neon
-const C_DANGER       := Color(1.00, 0.20, 0.20, 1.0)      # red neon
-const C_MUTED        := Color(0.53, 0.60, 0.73, 1.0)      # ice grey text
-const C_WHITE        := Color(0.93, 0.96, 1.00, 1.0)      # near-white
+# ── Pastel theme ─────────────────────────────────────────────────────────────
+const C_BG_TOP         := Color("#FFF1F9")
+const C_BG_MID         := Color("#FFF8F0")
+const C_BG_BOT         := Color("#F0FFF8")
+const C_PANEL          := Color(1.0, 1.0, 1.0, 0.75)
+const C_PANEL_BORDER   := Color("#FFD6E7")
+const C_CTA_FROM       := Color("#F472B6")
+const C_CTA_TO         := Color("#A78BFA")
+const C_TEXT_PRIMARY   := Color("#6B4E71")
+const C_TEXT_SECONDARY := Color("#C084B8")
+const C_TEXT_ACTION    := Color("#9B7BAB")
+const C_PIP_EXACT      := Color("#22C55E")
+const C_PIP_MISPLACE   := Color("#FACC15")
+const C_PIP_EMPTY      := Color(0.784, 0.706, 0.863, 0.25)
+const C_ACTIVE_ROW     := Color(0.957, 0.447, 0.714, 0.07)
+const C_ACTIVE_BORDER  := Color(0.957, 0.447, 0.714, 0.4)
 
 const PALETTE := [
 	{"name": "Red",    "color": Color("#ef4444")},
@@ -240,17 +246,21 @@ func _apply_theme() -> void:
 	t.set_stylebox("pressed",  "Button", make_btn.call(Color(0.03, 0.06, 0.12, 1.0), 0.14))
 	t.set_stylebox("focus",    "Button", make_btn.call(Color(0.06, 0.10, 0.19, 1.0), 0.22))
 	t.set_stylebox("disabled", "Button", make_btn.call(Color(0.04, 0.07, 0.13, 0.50), 0.06))
-	t.set_color("font_color",          "Button", C_WHITE)
+	# TODO: update to pastel
+	#t.set_color("font_color",          "Button", C_WHITE)
 	t.set_color("font_hover_color",    "Button", Color(1.00, 1.00, 1.00, 1.00))
-	t.set_color("font_pressed_color",  "Button", C_MUTED)
+	# TODO: update to pastel
+	#t.set_color("font_pressed_color",  "Button", C_MUTED)
 	t.set_color("font_disabled_color", "Button", Color(0.35, 0.40, 0.52, 0.60))
 
 	# ── CheckButton ─────────────────────────────────────────────────────────
-	t.set_color("font_color",       "CheckButton", C_WHITE)
+	# TODO: update to pastel
+	#t.set_color("font_color",       "CheckButton", C_WHITE)
 	t.set_color("font_hover_color", "CheckButton", Color(1.00, 1.00, 1.00, 1.0))
 
 	# ── Label ───────────────────────────────────────────────────────────────
-	t.set_color("font_color", "Label", C_WHITE)
+	# TODO: update to pastel
+	#t.set_color("font_color", "Label", C_WHITE)
 
 	# ── HSeparator ──────────────────────────────────────────────────────────
 	var sep := StyleBoxFlat.new()
@@ -338,10 +348,14 @@ func _apply_label_vocabulary() -> void:
 	result_menu_button.text       = "MAIN GRID"
 
 	# Apply gold tint to guess counter
-	guess_counter_label.add_theme_color_override("font_color", C_GOLD)
-	round_info_label.add_theme_color_override("font_color", C_MUTED)
-	status_label.add_theme_color_override("font_color", C_MUTED)
-	selection_label.add_theme_color_override("font_color", C_MUTED)
+	# TODO: update to pastel
+	#guess_counter_label.add_theme_color_override("font_color", C_GOLD)
+	# TODO: update to pastel
+	#round_info_label.add_theme_color_override("font_color", C_MUTED)
+	# TODO: update to pastel
+	#status_label.add_theme_color_override("font_color", C_MUTED)
+	# TODO: update to pastel
+	#selection_label.add_theme_color_override("font_color", C_MUTED)
 
 func _find_label(node_path: String) -> Label:
 	return get_node(node_path) as Label
@@ -744,11 +758,14 @@ func _build_history_row(guess_number: int, item: Dictionary) -> Control:
 	# Accent bar color: green if any exact, gold if only misplaced, red if no match
 	var accent_color: Color
 	if exact_count > 0:
-		accent_color = C_SUCCESS
+		# TODO: update to pastel
+		accent_color = Color.GREEN  # C_SUCCESS
 	elif mis_count > 0:
-		accent_color = C_GOLD
+		# TODO: update to pastel
+		accent_color = Color.YELLOW  # C_GOLD
 	else:
-		accent_color = C_DANGER
+		# TODO: update to pastel
+		accent_color = Color.RED  # C_DANGER
 
 	var panel := PanelContainer.new()
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -786,7 +803,8 @@ func _build_history_row(guess_number: int, item: Dictionary) -> Control:
 	count_lbl.text = "[%02d]" % guess_number
 	count_lbl.custom_minimum_size = Vector2(60, 0)
 	count_lbl.vertical_alignment  = VERTICAL_ALIGNMENT_CENTER
-	count_lbl.add_theme_color_override("font_color", C_MUTED)
+	# TODO: update to pastel
+	#count_lbl.add_theme_color_override("font_color", C_MUTED)
 	count_lbl.add_theme_font_size_override("font_size", 20)
 	row.add_child(count_lbl)
 
@@ -819,28 +837,33 @@ func _build_history_row(guess_number: int, item: Dictionary) -> Control:
 		if exact_count > 0:
 			var el := Label.new()
 			el.text = "%d LOCKED" % exact_count
-			el.add_theme_color_override("font_color", C_SUCCESS)
+			# TODO: update to pastel
+			#el.add_theme_color_override("font_color", C_SUCCESS)
 			el.add_theme_font_size_override("font_size", 20)
 			el.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 			feedback_col.add_child(el)
 			for _i in range(exact_count):
-				feedback_col.add_child(_make_diamond_pip(C_SUCCESS))
+				# TODO: update to pastel
+				feedback_col.add_child(_make_diamond_pip(Color.GREEN))  # C_SUCCESS
 		if exact_count > 0 and mis_count > 0:
 			var sep_lbl := Label.new()
 			sep_lbl.text = "·"
-			sep_lbl.add_theme_color_override("font_color", C_MUTED)
+			# TODO: update to pastel
+			#sep_lbl.add_theme_color_override("font_color", C_MUTED)
 			sep_lbl.add_theme_font_size_override("font_size", 20)
 			sep_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 			feedback_col.add_child(sep_lbl)
 		if mis_count > 0:
 			var ml := Label.new()
 			ml.text = "%d SHIFTED" % mis_count
-			ml.add_theme_color_override("font_color", C_GOLD)
+			# TODO: update to pastel
+			#ml.add_theme_color_override("font_color", C_GOLD)
 			ml.add_theme_font_size_override("font_size", 20)
 			ml.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 			feedback_col.add_child(ml)
 			for _i in range(mis_count):
-				feedback_col.add_child(_make_diamond_pip(C_GOLD))
+				# TODO: update to pastel
+				feedback_col.add_child(_make_diamond_pip(Color.YELLOW))  # C_GOLD
 
 	return panel
 
@@ -884,11 +907,13 @@ func _finish_game(did_win: bool, message: String) -> void:
 	AdManager.on_game_finished()
 
 	result_layer.visible = true
-	result_message_label.add_theme_color_override("font_color", C_MUTED)
+	# TODO: update to pastel
+	#result_message_label.add_theme_color_override("font_color", C_MUTED)
 
 	if did_win:
 		result_title_label.text = "SEQUENCE DECODED"
-		result_title_label.add_theme_color_override("font_color", C_SUCCESS)
+		# TODO: update to pastel
+		#result_title_label.add_theme_color_override("font_color", C_SUCCESS)
 		result_message_label.text = message + "\n\nCONFIRMED SEQUENCE:"
 		status_label.text = "SEQUENCE CONFIRMED."
 		_reveal_answer_dots()
@@ -897,7 +922,8 @@ func _finish_game(did_win: bool, message: String) -> void:
 			_add_xp_doubler_button()
 	else:
 		result_title_label.text = "DECRYPTION FAILED"
-		result_title_label.add_theme_color_override("font_color", C_DANGER)
+		# TODO: update to pastel
+		#result_title_label.add_theme_color_override("font_color", C_DANGER)
 		result_message_label.text = message
 		status_label.text = "DECIDE YOUR NEXT ACTION."
 		# Offer second chance BEFORE revealing the answer
@@ -940,7 +966,8 @@ func _offer_second_chance_or_reveal() -> void:
 	var offer_lbl := Label.new()
 	offer_lbl.text = "WANT ANOTHER CHANCE?"
 	offer_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	offer_lbl.add_theme_color_override("font_color", C_WHITE)
+	# TODO: update to pastel
+	#offer_lbl.add_theme_color_override("font_color", C_WHITE)
 	offer_lbl.add_theme_font_size_override("font_size", 26)
 	popup_vbox.add_child(offer_lbl)
 	popup_vbox.move_child(offer_lbl, popup_vbox.get_child_count() - 2)
@@ -1060,7 +1087,8 @@ func _show_reward_flytext(xp_earned: int, coins_earned: int, levels_gained: int)
 		text += "\n▲ LEVEL %d" % SaveData.level
 	lbl.text = text
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.add_theme_color_override("font_color", C_GOLD)
+	# TODO: update to pastel
+	#lbl.add_theme_color_override("font_color", C_GOLD)
 	lbl.add_theme_font_size_override("font_size", 28)
 	lbl.modulate.a = 0.0
 
@@ -1151,14 +1179,16 @@ func _on_login_streak_updated(streak: int, coins_awarded: int) -> void:
 	var streak_lbl := Label.new()
 	streak_lbl.text = "🔥  DAY %d LOGIN STREAK" % streak
 	streak_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	streak_lbl.add_theme_color_override("font_color", C_GOLD)
+	# TODO: update to pastel
+	#streak_lbl.add_theme_color_override("font_color", C_GOLD)
 	streak_lbl.add_theme_font_size_override("font_size", 28)
 	vbox.add_child(streak_lbl)
 
 	var coin_lbl := Label.new()
 	coin_lbl.text = "+%d COINS AWARDED" % coins_awarded
 	coin_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	coin_lbl.add_theme_color_override("font_color", C_SUCCESS)
+	# TODO: update to pastel
+	#coin_lbl.add_theme_color_override("font_color", C_SUCCESS)
 	coin_lbl.add_theme_font_size_override("font_size", 22)
 	vbox.add_child(coin_lbl)
 
@@ -1348,14 +1378,16 @@ func _make_mode_card(data: Dictionary, open_campaign: bool = false) -> Control:
 	var sub_lbl := Label.new()
 	sub_lbl.text = data["sub"]
 	sub_lbl.add_theme_font_size_override("font_size", 19)
-	sub_lbl.add_theme_color_override("font_color", C_MUTED)
+	# TODO: update to pastel
+	#sub_lbl.add_theme_color_override("font_color", C_MUTED)
 	sub_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	info.add_child(sub_lbl)
 
 	var desc_lbl := Label.new()
 	desc_lbl.text = data["desc"]
 	desc_lbl.add_theme_font_size_override("font_size", 22)
-	desc_lbl.add_theme_color_override("font_color", C_WHITE)
+	# TODO: update to pastel
+	#desc_lbl.add_theme_color_override("font_color", C_WHITE)
 	desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	info.add_child(desc_lbl)
 
@@ -1463,11 +1495,12 @@ func _build_stats_screen() -> void:
 	if SaveData.games_played > 0:
 		win_pct = int(round(float(SaveData.games_won) / float(SaveData.games_played) * 100.0))
 
+	# TODO: update to pastel
 	for tile_data in [
-		["PLAYED",      str(SaveData.games_played),       C_WHITE],
-		["WIN RATE",    "%d%%" % win_pct,                 C_SUCCESS],
-		["WIN STREAK",  str(SaveData.current_win_streak), C_GOLD],
-		["BEST STREAK", str(SaveData.max_win_streak),     C_GOLD],
+		["PLAYED",      str(SaveData.games_played),       Color.WHITE],  # C_WHITE
+		["WIN RATE",    "%d%%" % win_pct,                 Color.GREEN],  # C_SUCCESS
+		["WIN STREAK",  str(SaveData.current_win_streak), Color.YELLOW],  # C_GOLD
+		["BEST STREAK", str(SaveData.max_win_streak),     Color.YELLOW],  # C_GOLD
 	]:
 		row1.add_child(_make_stat_tile(tile_data[0], tile_data[1], tile_data[2]))
 
@@ -1478,7 +1511,8 @@ func _build_stats_screen() -> void:
 	dist_title.text = "GUESS DISTRIBUTION"
 	dist_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	dist_title.add_theme_font_size_override("font_size", 24)
-	dist_title.add_theme_color_override("font_color", C_MUTED)
+	# TODO: update to pastel
+	#dist_title.add_theme_color_override("font_color", C_MUTED)
 	vbox.add_child(dist_title)
 
 	var dist_max := 1
@@ -1500,7 +1534,8 @@ func _build_stats_screen() -> void:
 		var num_lbl := Label.new()
 		num_lbl.text = str(i + 1)
 		num_lbl.add_theme_font_size_override("font_size", 20)
-		num_lbl.add_theme_color_override("font_color", C_MUTED)
+		# TODO: update to pastel
+		#num_lbl.add_theme_color_override("font_color", C_MUTED)
 		num_lbl.custom_minimum_size = Vector2(26, 0)
 		num_lbl.vertical_alignment  = VERTICAL_ALIGNMENT_CENTER
 		dr.add_child(num_lbl)
@@ -1514,7 +1549,8 @@ func _build_stats_screen() -> void:
 		filled.size_flags_horizontal  = Control.SIZE_EXPAND_FILL
 		filled.size_flags_stretch_ratio = max(ratio, 0.02)
 		var fs := StyleBoxFlat.new()
-		fs.bg_color = C_SUCCESS if count > 0 else Color(0.08, 0.12, 0.22, 0.60)
+		# TODO: update to pastel
+		fs.bg_color = Color.GREEN if count > 0 else Color(0.08, 0.12, 0.22, 0.60)  # C_SUCCESS
 		fs.corner_radius_top_left     = 5
 		fs.corner_radius_top_right    = 5
 		fs.corner_radius_bottom_left  = 5
@@ -1531,7 +1567,8 @@ func _build_stats_screen() -> void:
 		var cnt_lbl := Label.new()
 		cnt_lbl.text = str(count)
 		cnt_lbl.add_theme_font_size_override("font_size", 20)
-		cnt_lbl.add_theme_color_override("font_color", C_GOLD)
+		# TODO: update to pastel
+		#cnt_lbl.add_theme_color_override("font_color", C_GOLD)
 		cnt_lbl.custom_minimum_size     = Vector2(30, 0)
 		cnt_lbl.horizontal_alignment    = HORIZONTAL_ALIGNMENT_RIGHT
 		cnt_lbl.vertical_alignment      = VERTICAL_ALIGNMENT_CENTER
@@ -1544,11 +1581,12 @@ func _build_stats_screen() -> void:
 	row2.add_theme_constant_override("separation", 12)
 	vbox.add_child(row2)
 
+	# TODO: update to pastel
 	for tile_data in [
 		["LEVEL",        str(SaveData.level),            Color(0.0, 0.9, 1.0, 1.0)],
-		["DAILY STREAK", str(SaveData.daily_streak),     C_GOLD],
-		["DAILY BEST",   str(SaveData.daily_max_streak), C_GOLD],
-		["COINS",        str(SaveData.coins),             C_GOLD],
+		["DAILY STREAK", str(SaveData.daily_streak),     Color.YELLOW],  # C_GOLD
+		["DAILY BEST",   str(SaveData.daily_max_streak), Color.YELLOW],  # C_GOLD
+		["COINS",        str(SaveData.coins),             Color.YELLOW],  # C_GOLD
 	]:
 		row2.add_child(_make_stat_tile(tile_data[0], tile_data[1], tile_data[2]))
 
@@ -1599,7 +1637,8 @@ func _make_stat_tile(label: String, value: String, value_color: Color) -> Contro
 	key_lbl.text = label
 	key_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	key_lbl.add_theme_font_size_override("font_size", 17)
-	key_lbl.add_theme_color_override("font_color", C_MUTED)
+	# TODO: update to pastel
+	#key_lbl.add_theme_color_override("font_color", C_MUTED)
 	vb.add_child(key_lbl)
 
 	return panel
@@ -1648,7 +1687,8 @@ func _show_campaign_stars_ui(stars: int) -> void:
 	lvl_lbl.text = "LEVEL %d" % _current_campaign_level
 	lvl_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lvl_lbl.add_theme_font_size_override("font_size", 22)
-	lvl_lbl.add_theme_color_override("font_color", C_MUTED)
+	# TODO: update to pastel
+	#lvl_lbl.add_theme_color_override("font_color", C_MUTED)
 	lvl_lbl.add_to_group("campaign_ui")
 	popup_vbox.add_child(lvl_lbl)
 	popup_vbox.move_child(lvl_lbl, 1)  # just below title
@@ -1660,7 +1700,8 @@ func _show_campaign_stars_ui(stars: int) -> void:
 	star_lbl.text = star_str
 	star_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	star_lbl.add_theme_font_size_override("font_size", 54)
-	star_lbl.add_theme_color_override("font_color", C_GOLD if stars > 0 else C_MUTED)
+	# TODO: update to pastel
+	star_lbl.add_theme_color_override("font_color", Color.YELLOW if stars > 0 else Color.GRAY)  # C_GOLD if stars > 0 else C_MUTED
 	star_lbl.add_to_group("campaign_ui")
 	popup_vbox.add_child(star_lbl)
 	popup_vbox.move_child(star_lbl, 2)  # below level label
@@ -1696,7 +1737,8 @@ func _build_campaign_screen() -> void:
 	var bg := ColorRect.new()
 	bg.layout_mode = 1
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg.color = Color(C_BG.r, C_BG.g, C_BG.b, 0.97)
+	# TODO: update to pastel
+	bg.color = Color(0.0, 0.0, 0.0, 0.97)  # C_BG
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_campaign_layer.add_child(bg)
 
@@ -1726,14 +1768,16 @@ func _build_campaign_screen() -> void:
 	title.text = "CAMPAIGN"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 48)
-	title.add_theme_color_override("font_color", C_GOLD)
+	# TODO: update to pastel
+	#title.add_theme_color_override("font_color", C_GOLD)
 	content.add_child(title)
 
 	var subtitle := Label.new()
 	subtitle.text = "100 LEVELS  ·  EARN UP TO ★★★  ·  DIFFICULTY SCALES"
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	subtitle.add_theme_font_size_override("font_size", 20)
-	subtitle.add_theme_color_override("font_color", C_MUTED)
+	# TODO: update to pastel
+	#subtitle.add_theme_color_override("font_color", C_MUTED)
 	content.add_child(subtitle)
 
 	content.add_child(HSeparator.new())
@@ -1743,7 +1787,8 @@ func _build_campaign_screen() -> void:
 	legend.text = "L1–20: 3 nodes  ·  L21–50: 4 nodes  ·  L51–80: 4 nodes+  ·  L81–100: 5 nodes / 6 colors"
 	legend.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	legend.add_theme_font_size_override("font_size", 17)
-	legend.add_theme_color_override("font_color", C_MUTED)
+	# TODO: update to pastel
+	#legend.add_theme_color_override("font_color", C_MUTED)
 	legend.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	content.add_child(legend)
 
@@ -1796,8 +1841,9 @@ func _make_campaign_level_button(lvl: int, stars: int, is_locked: bool) -> Contr
 		font_color = Color(0.35, 0.38, 0.48, 0.55)
 	elif stars == 3:
 		ps.bg_color    = Color(0.12, 0.10, 0.02, 0.92)
-		ps.border_color = Color(C_GOLD.r, C_GOLD.g, C_GOLD.b, 0.80)
-		font_color = C_GOLD
+		# TODO: update to pastel
+		ps.border_color = Color(Color.YELLOW.r, Color.YELLOW.g, Color.YELLOW.b, 0.80)  # C_GOLD
+		font_color = Color.YELLOW  # C_GOLD
 	elif stars > 0:
 		ps.bg_color    = Color(0.02, 0.10, 0.14, 0.92)
 		ps.border_color = Color(0.00, 0.90, 1.00, 0.60)
@@ -1805,7 +1851,8 @@ func _make_campaign_level_button(lvl: int, stars: int, is_locked: bool) -> Contr
 	else:
 		ps.bg_color    = Color(0.04, 0.08, 0.16, 0.90)
 		ps.border_color = Color(0.00, 0.90, 1.00, 0.90)
-		font_color = C_WHITE
+		# TODO: update to pastel
+		font_color = Color.WHITE  # C_WHITE
 
 	btn.add_theme_stylebox_override("normal",   ps)
 	btn.add_theme_stylebox_override("focus",    ps)
