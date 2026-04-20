@@ -749,8 +749,8 @@ func _on_submit_pressed() -> void:
 		SoundManager.play("misplace")
 
 	if int(result["exact"]) == slots_needed:
-		_finish_game(true, "SEQUENCE DECODED IN %d ATTEMPT%s." % [
-			guess_history.size(), "" if guess_history.size() == 1 else "S"
+		_finish_game(true, "Cracked it! %d guess%s." % [
+			guess_history.size(), "" if guess_history.size() == 1 else "es"
 		])
 		return
 	if guess_history.size() >= MAX_GUESSES:
