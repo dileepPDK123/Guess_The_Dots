@@ -15,19 +15,31 @@ func _ready() -> void:
 	tooltip_text = color_name
 	_refresh_style()
 
-func set_selected(selected: bool) -> void:
-	if is_selected == selected:
-		return
-	is_selected = selected
-	_refresh_style()
-	if selected:
-		var tw := create_tween()
-		tw.tween_property(self, "scale", Vector2(1.08, 1.08), 0.10)\
-			.set_ease(Tween.EASE_OUT)
+func set_selected(is_selected: bool) -> void:
+	var sb := StyleBoxFlat.new()
+	sb.corner_radius_top_left    = 999
+	sb.corner_radius_top_right   = 999
+	sb.corner_radius_bottom_left  = 999
+	sb.corner_radius_bottom_right = 999
+	sb.bg_color = dot_color
+	if is_selected:
+		sb.border_color = Color(dot_color.r, dot_color.g, dot_color.b, 0.4)
+		sb.border_width_left   = 3
+		sb.border_width_right  = 3
+		sb.border_width_top    = 3
+		sb.border_width_bottom = 3
+		scale = Vector2(1.12, 1.12)
 	else:
-		var tw := create_tween()
-		tw.tween_property(self, "scale", Vector2(1.0, 1.0), 0.10)\
-			.set_ease(Tween.EASE_OUT)
+		sb.border_width_left   = 0
+		sb.border_width_right  = 0
+		sb.border_width_top    = 0
+		sb.border_width_bottom = 0
+		scale = Vector2(1.0, 1.0)
+	sb.shadow_color = Color(dot_color.r, dot_color.g, dot_color.b, 0.30)
+	sb.shadow_size  = 8
+	add_theme_stylebox_override("normal",  sb)
+	add_theme_stylebox_override("hover",   sb)
+	add_theme_stylebox_override("pressed", sb)
 
 func _get_drag_data(_at_position: Vector2) -> Variant:
 	var preview := Panel.new()

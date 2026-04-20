@@ -33,7 +33,7 @@ func _drop_data(_at_position: Vector2, data: Variant) -> void:
 func set_empty_visual() -> void:
 	_is_filled = false
 	tooltip_text = "Empty — tap a color to fill, or drag one here"
-	_apply_all(_build_style(C_EMPTY_BG, C_EMPTY_BORDER, 2))
+	_apply_slot_style(false)
 	_start_scan_anim()
 
 func set_filled_visual(dot_color: Color, color_name: String) -> void:
@@ -41,7 +41,7 @@ func set_filled_visual(dot_color: Color, color_name: String) -> void:
 	_filled_color = dot_color
 	tooltip_text = "Placed: %s — tap to clear" % color_name
 	_stop_scan_anim()
-	_apply_all(_build_style(dot_color, dot_color.lightened(0.25), 4))
+	_apply_slot_style(true, dot_color)
 
 func _on_pressed() -> void:
 	slot_pressed_for_assign.emit(slot_index)
@@ -65,6 +65,25 @@ func _set_border_alpha(alpha: float) -> void:
 		return
 	var border := Color(0.00, 0.90, 1.00, alpha)
 	_apply_all(_build_style(C_EMPTY_BG, border, 2))
+
+func _apply_slot_style(filled: bool, dot_color: Color = Color.TRANSPARENT) -> void:
+	var sb := StyleBoxFlat.new()
+	sb.corner_radius_top_left    = 8
+	sb.corner_radius_top_right   = 8
+	sb.corner_radius_bottom_left  = 8
+	sb.corner_radius_bottom_right = 8
+	if filled:
+		sb.bg_color = dot_color
+	else:
+		sb.bg_color = Color(1.0, 1.0, 1.0, 0.0)
+		sb.border_color = Color(0.957, 0.447, 0.714, 0.35)
+		sb.border_width_left   = 2
+		sb.border_width_right  = 2
+		sb.border_width_top    = 2
+		sb.border_width_bottom = 2
+	add_theme_stylebox_override("normal", sb)
+	add_theme_stylebox_override("hover",  sb)
+	add_theme_stylebox_override("pressed", sb)
 
 # ── Style builders ────────────────────────────────────────────────────────────
 func _apply_all(style: StyleBoxFlat) -> void:
