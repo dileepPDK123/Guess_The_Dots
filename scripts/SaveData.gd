@@ -63,6 +63,24 @@ var active_shape: String = "circle"
 ## achievement_id (String) → true once unlocked
 var achievements: Dictionary = {}
 
+# ── Settings (migrated from settings.cfg) ─────────────────────────────────────
+var colorblind_enabled: bool = false
+var sound_enabled: bool = true
+var haptics_enabled_migrated: bool = true
+
+# ── Easy mode ─────────────────────────────────────────────────────────────────
+var easy_wins: int = 0
+
+# ── Custom puzzles ─────────────────────────────────────────────────────────────
+var custom_puzzles_played: int = 0
+
+# ── Daily best time (ms) ──────────────────────────────────────────────────────
+var daily_best_time_ms: int = 0
+
+# ── Guess distribution per mode ───────────────────────────────────────────────
+var guess_distribution_classic: Array = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+var guess_distribution_easy: Array    = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
 # ── Campaign ──────────────────────────────────────────────────────────────────
 ## level_number (String) → {stars: int}
 var campaign_progress: Dictionary = {}
@@ -129,6 +147,23 @@ func load_data() -> void:
 	campaign_progress     = _cfg.get_value("campaign", "progress", {})
 	campaign_max_unlocked = _cfg.get_value("campaign", "max_unlocked", 1)
 
+	# Settings (migrated from settings.cfg)
+	colorblind_enabled = _cfg.get_value("settings", "colorblind_enabled", false)
+	sound_enabled      = _cfg.get_value("settings", "sound_enabled", true)
+
+	# Easy mode / Custom
+	easy_wins             = _cfg.get_value("stats", "easy_wins", 0)
+	custom_puzzles_played = _cfg.get_value("stats", "custom_puzzles_played", 0)
+	daily_best_time_ms    = _cfg.get_value("daily", "best_time_ms", 0)
+	guess_distribution_classic = _cfg.get_value("stats", "guess_dist_classic", [0,0,0,0,0,0,0,0,0,0])
+	guess_distribution_easy    = _cfg.get_value("stats", "guess_dist_easy",    [0,0,0,0,0,0,0,0,0,0])
+
+	# One-time migration: pull haptics from old settings.cfg if present
+	var old_cfg := ConfigFile.new()
+	if old_cfg.load("user://settings.cfg") == OK:
+		haptics_enabled_migrated = old_cfg.get_value("settings", "haptics", true)
+		_cfg.set_value("settings", "haptics_migrated", true)
+
 func save() -> void:
 	# Progression
 	_cfg.set_value("progression", "xp", xp)
@@ -173,6 +208,15 @@ func save() -> void:
 	# Campaign
 	_cfg.set_value("campaign", "progress",     campaign_progress)
 	_cfg.set_value("campaign", "max_unlocked", campaign_max_unlocked)
+
+	# Settings
+	_cfg.set_value("settings", "colorblind_enabled", colorblind_enabled)
+	_cfg.set_value("settings", "sound_enabled",      sound_enabled)
+	_cfg.set_value("stats", "easy_wins",             easy_wins)
+	_cfg.set_value("stats", "custom_puzzles_played", custom_puzzles_played)
+	_cfg.set_value("daily", "best_time_ms",          daily_best_time_ms)
+	_cfg.set_value("stats", "guess_dist_classic",    guess_distribution_classic)
+	_cfg.set_value("stats", "guess_dist_easy",       guess_distribution_easy)
 
 	_cfg.save(SAVE_PATH)
 
