@@ -470,10 +470,11 @@ func _build_wordle_board() -> void:
 	if has_node("GameLayer/GameVBox/HistoryPanel"):
 		$GameLayer/GameVBox/HistoryPanel.hide()
 
-	# Remove previously built board if any
+	# Remove previously built board if any (queue_free defers — rename to avoid collision)
 	if has_node("GameLayer/GameVBox/BoardVBox"):
-		$GameLayer/GameVBox/BoardVBox.queue_free()
-		await get_tree().process_frame
+		var old_board := $GameLayer/GameVBox/BoardVBox
+		old_board.name = "_BoardVBoxOld"
+		old_board.queue_free()
 
 	var total_rows := MAX_GUESSES if current_mode != GameMode.ZEN else 10
 	var board_vbox := VBoxContainer.new()
@@ -555,7 +556,10 @@ func _apply_past_row(row: Dictionary, item: Dictionary) -> void:
 	var misplaced: int = int(item["misplaced"])
 	var slots: Array = row.slots
 	for s in range(slots.size()):
-		var color := PALETTE[int(guess[s])]["color"] as Color
+		var ci := int(guess[s])
+		if ci < 0 or ci >= PALETTE.size():
+			ci = 0  # fallback to first color if index is out of range
+		var color := PALETTE[ci]["color"] as Color
 		(slots[s] as SlotButton).set_filled_visual(color, "")
 		(slots[s] as Control).modulate.a = 1.0
 	_update_pips(row.pips, exact, misplaced)
