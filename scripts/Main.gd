@@ -133,7 +133,7 @@ func _process(delta: float) -> void:
 			Color(1.0, flash * 0.3, flash * 0.3, 1.0))
 	if _blitz_time_remaining <= 0.0:
 		_blitz_timer_active = false
-		_finish_game(false, "TIME EXPIRED. DECRYPTION FAILED.")
+		_finish_game(false, "Time's up!")
 
 # =============================================================================
 func _ready() -> void:
@@ -287,58 +287,13 @@ func _style_panel_glass(panel: PanelContainer) -> void:
 # Vocabulary — rename static labels to NEURAL GRID copy
 # =============================================================================
 func _apply_label_vocabulary() -> void:
-	# Menu
-	_find_label("MenuLayer/MenuPanel/MenuMargin/MenuVBox/TitleLabel").text = "GUESS THE DOTS"
-	_find_label("MenuLayer/MenuPanel/MenuMargin/MenuVBox/SubtitleLabel").text = \
-		"CRACK THE NEURAL SEQUENCE  ·  COLORS CAN REPEAT"
-	new_game_button.text        = "NEW SEQUENCE"
-	how_to_play_menu_button.text = "BRIEFING"
-	quit_button.text            = "DISCONNECT"
-
-	# In-game header
-	header_title_label.text = "BUILD SEQUENCE"
-
-	# Guess panel
-	_find_label("GameLayer/GameVBox/GuessPanel/GuessMargin/GuessVBox/SlotsLabel").text = \
-		"ACTIVE SEQUENCE"
-	submit_button.text  = "TRANSMIT ▶"
-	clear_button.text   = "WIPE"
-	undo_button.text    = "REVERT"
-	hint_button.text    = "SCAN [AD] — REVEAL 1 NODE"
-
-	# Palette
-	_find_label("GameLayer/GameVBox/PalettePanel/PaletteMargin/PaletteVBox/PaletteTitleLabel").text = \
-		"COLOR MATRIX"
-
-	# History
-	_find_label("GameLayer/GameVBox/HistoryPanel/HistoryMargin/HistoryVBox/HistoryTitleLabel").text = \
-		"ATTEMPT LOG"
-
-	# Hamburger menu
-	_find_label("HamburgerMenuLayer/HamburgerOverlay/MenuCenter/MenuPopupPanel/MenuPopupMargin/MenuPopupVBox/MenuTitleLabel").text = \
-		"MENU"
-	new_round_menu_button.text  = "NEW SEQUENCE"
-	main_menu_menu_button.text  = "MAIN GRID"
-	how_to_play_button.text     = "BRIEFING"
-	close_menu_button.text      = "CLOSE"
-	_find_label("HamburgerMenuLayer/HamburgerOverlay/MenuCenter/MenuPopupPanel/MenuPopupMargin/MenuPopupVBox/SettingsTitleLabel").text = \
-		"SETTINGS"
-	_find_label("HamburgerMenuLayer/HamburgerOverlay/MenuCenter/MenuPopupPanel/MenuPopupMargin/MenuPopupVBox/HapticsRow/HapticsLabel").text = \
-		"HAPTIC FEEDBACK"
-
-	# Result buttons
-	result_play_again_button.text = "PLAY AGAIN"
-	result_menu_button.text       = "MAIN GRID"
-
-	# Apply gold tint to guess counter
-	# TODO: update to pastel
-	#guess_counter_label.add_theme_color_override("font_color", C_GOLD)
-	# TODO: update to pastel
-	#round_info_label.add_theme_color_override("font_color", C_MUTED)
-	# TODO: update to pastel
-	#status_label.add_theme_color_override("font_color", C_MUTED)
-	# TODO: update to pastel
-	#selection_label.add_theme_color_override("font_color", C_MUTED)
+	submit_button.text = "SUBMIT"
+	clear_button.text  = "CLEAR"
+	undo_button.text   = "UNDO"
+	hint_button.text   = "HINT"
+	new_game_button.text         = "PLAY"
+	how_to_play_menu_button.text = "HOW TO PLAY"
+	header_title_label.text      = "Guess the Dots"
 
 func _find_label(node_path: String) -> Label:
 	return get_node(node_path) as Label
@@ -534,7 +489,7 @@ func _update_palette_selection() -> void:
 		dot.set_selected(index == selected_color_index)
 	var empty := slots_needed - _filled_slot_count()
 	if empty == 0:
-		selection_label.text = "SEQUENCE COMPLETE — TRANSMIT?"
+		selection_label.text = "SEQUENCE COMPLETE — SUBMIT?"
 	else:
 		selection_label.text = "%d NODE%s OPEN" % [empty, "" if empty == 1 else "S"]
 
@@ -557,7 +512,7 @@ func _on_palette_dot_pressed(index: int) -> void:
 			_vibrate(18)
 			SoundManager.play("dot_place")
 			return
-	status_label.text = "SEQUENCE COMPLETE — TRANSMIT OR TAP A SLOT TO CLEAR IT."
+	status_label.text = "SEQUENCE COMPLETE — SUBMIT OR TAP A SLOT TO CLEAR IT."
 
 func _on_slot_color_dropped(slot_index: int, color_index: int) -> void:
 	if not round_active:
@@ -592,7 +547,7 @@ func _on_clear_pressed() -> void:
 		current_guess[index] = -1
 	_refresh_guess_ui()
 	_update_palette_selection()
-	status_label.text = "SEQUENCE WIPED."
+	status_label.text = "SEQUENCE CLEARED."
 	_vibrate(20)
 	SoundManager.play("dot_clear")
 
@@ -602,7 +557,7 @@ func _on_undo_pressed() -> void:
 			current_guess[index] = -1
 			_refresh_guess_ui()
 			_update_palette_selection()
-			status_label.text = "LAST NODE REVERTED."
+			status_label.text = "LAST NODE UNDONE."
 			_vibrate(12)
 			SoundManager.play("dot_clear")
 			return
@@ -611,7 +566,7 @@ func _on_hint_pressed() -> void:
 	if not round_active:
 		return
 	if not AdManager.is_rewarded_ready():
-		status_label.text = "SCAN NOT AVAILABLE YET — RETRY SHORTLY."
+		status_label.text = "HINT NOT AVAILABLE YET — RETRY SHORTLY."
 		return
 	AdManager.rewarded_earned.connect(_apply_hint, CONNECT_ONE_SHOT)
 	var shown := AdManager.show_rewarded()
@@ -628,7 +583,7 @@ func _apply_hint() -> void:
 			current_guess[i] = secret_sequence[i]
 			_refresh_guess_ui()
 			_update_palette_selection()
-			status_label.text = "SCAN COMPLETE — NODE %d REVEALED." % (i + 1)
+			status_label.text = "HINT COMPLETE — NODE %d REVEALED." % (i + 1)
 			_vibrate(40)
 			return
 	status_label.text = "ALL NODES ALREADY CORRECT."
@@ -665,7 +620,7 @@ func _on_submit_pressed() -> void:
 		])
 		return
 	if guess_history.size() >= MAX_GUESSES:
-		_finish_game(false, "NO ATTEMPTS REMAINING. DECRYPTION FAILED.")
+		_finish_game(false, "Better luck next time!")
 		return
 
 	# Hard mode: carry forward exact (locked) slot values into the next guess
@@ -894,7 +849,7 @@ func _finish_game(did_win: bool, message: String) -> void:
 	#result_message_label.add_theme_color_override("font_color", C_MUTED)
 
 	if did_win:
-		result_title_label.text = "SEQUENCE DECODED"
+		result_title_label.text = "Cracked it!"
 		# TODO: update to pastel
 		#result_title_label.add_theme_color_override("font_color", C_SUCCESS)
 		result_message_label.text = message + "\n\nCONFIRMED SEQUENCE:"
@@ -904,7 +859,7 @@ func _finish_game(did_win: bool, message: String) -> void:
 		if not _xp_doubler_active and AdManager.is_rewarded_ready():
 			_add_xp_doubler_button()
 	else:
-		result_title_label.text = "DECRYPTION FAILED"
+		result_title_label.text = "Better luck next time!"
 		# TODO: update to pastel
 		#result_title_label.add_theme_color_override("font_color", C_DANGER)
 		result_message_label.text = message
