@@ -48,23 +48,12 @@ func _on_pressed() -> void:
 
 # ── Scanning animation (empty slots) ─────────────────────────────────────────
 func _start_scan_anim() -> void:
-	_stop_scan_anim()
-	_scan_tween = create_tween().set_loops()
-	_scan_tween.tween_method(_set_border_alpha, 0.18, 0.55, 0.75)\
-		.set_ease(Tween.EASE_IN_OUT)
-	_scan_tween.tween_method(_set_border_alpha, 0.55, 0.18, 0.75)\
-		.set_ease(Tween.EASE_IN_OUT)
+	pass
 
 func _stop_scan_anim() -> void:
 	if _scan_tween and _scan_tween.is_valid():
 		_scan_tween.kill()
 	_scan_tween = null
-
-func _set_border_alpha(alpha: float) -> void:
-	if _is_filled:
-		return
-	var border := Color(0.00, 0.90, 1.00, alpha)
-	_apply_all(_build_style(C_EMPTY_BG, border, 2))
 
 func _apply_slot_style(filled: bool, dot_color: Color = Color.TRANSPARENT) -> void:
 	var sb := StyleBoxFlat.new()
@@ -96,10 +85,10 @@ func _apply_all(style: StyleBoxFlat) -> void:
 func _build_style(fill: Color, border: Color, border_width: int) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = fill
-	style.corner_radius_top_left     = 999
-	style.corner_radius_top_right    = 999
-	style.corner_radius_bottom_right = 999
-	style.corner_radius_bottom_left  = 999
+	style.corner_radius_top_left     = 8
+	style.corner_radius_top_right    = 8
+	style.corner_radius_bottom_right = 8
+	style.corner_radius_bottom_left  = 8
 	style.border_width_left   = border_width
 	style.border_width_top    = border_width
 	style.border_width_right  = border_width

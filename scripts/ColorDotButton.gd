@@ -13,7 +13,7 @@ func _ready() -> void:
 	custom_minimum_size = Vector2(100, 100)
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	tooltip_text = color_name
-	_refresh_style()
+	set_selected(false)
 
 func set_selected(is_selected: bool) -> void:
 	var sb := StyleBoxFlat.new()
@@ -51,13 +51,6 @@ func _get_drag_data(_at_position: Vector2) -> Variant:
 		"type": "palette_color",
 		"color_index": color_index,
 	}
-
-func _refresh_style() -> void:
-	add_theme_stylebox_override("normal",   _build_style(dot_color, is_selected, false))
-	add_theme_stylebox_override("hover",    _build_style(dot_color.lightened(0.18), is_selected, false))
-	add_theme_stylebox_override("pressed",  _build_style(dot_color.darkened(0.18), is_selected, false))
-	add_theme_stylebox_override("focus",    _build_style(dot_color, is_selected, false))
-	add_theme_stylebox_override("disabled", _build_style(dot_color.darkened(0.35), false, false))
 
 func _build_style(fill: Color, selected: bool, compact: bool) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
