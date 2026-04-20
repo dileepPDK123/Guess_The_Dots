@@ -1,0 +1,219 @@
+<h2>Deep feature research — what this game is missing</h2>
+<p class="subtitle">Organized by category. Based on top mobile puzzle games (Wordle, Duolingo, NYT Games, Mastermind apps, Nonogram.com, Picross, Woodoku). Select everything that interests you.</p>
+
+<div class="section">
+  <h3>🔁 Retention Mechanics</h3>
+  <p class="subtitle" style="margin-bottom:8px;">The #1 reason players stop opening an app is "nothing new today." These fix that.</p>
+  <div class="options" data-multiselect>
+
+    <div class="option" data-choice="streak_freeze" onclick="toggleSelect(this)">
+      <div class="letter">🧊</div>
+      <div class="content">
+        <h3>Streak Freeze (shop item)</h3>
+        <p>Protect your daily streak if you miss a day. Buy with XP or coins. Duolingo's single most effective retention mechanic — players don't quit because they fear losing a streak.</p>
+      </div>
+    </div>
+
+    <div class="option" data-choice="resume" onclick="toggleSelect(this)">
+      <div class="letter">💾</div>
+      <div class="content">
+        <h3>Auto-Save / Resume Mid-Game</h3>
+        <p>If you close the app mid-round, your guess history is saved. Return and continue. Obvious but missing in most puzzle games — players lose progress and feel punished for interruptions.</p>
+      </div>
+    </div>
+
+    <div class="option" data-choice="comeback" onclick="toggleSelect(this)">
+      <div class="letter">📉→📈</div>
+      <div class="content">
+        <h3>Comeback Mechanic</h3>
+        <p>After 3 losses in a row, next puzzle quietly gets slightly easier (one fewer slot or one extra guess). Prevents frustration rage-quit. Player never knows — just feels like they "got better."</p>
+      </div>
+    </div>
+
+    <div class="option" data-choice="first_win_bonus" onclick="toggleSelect(this)">
+      <div class="letter">☀️</div>
+      <div class="content">
+        <h3>First Win of Day Bonus</h3>
+        <p>First win each day gives 2× XP and a coin bonus. Adds a lightweight daily ritual even for players who don't do the Daily Challenge. Takes 10 minutes to implement.</p>
+      </div>
+    </div>
+
+    <div class="option" data-choice="weekly_challenge" onclick="toggleSelect(this)">
+      <div class="letter">📅</div>
+      <div class="content">
+        <h3>Weekly Challenge</h3>
+        <p>One special puzzle per week — harder config (5 slots, 6 colors), extra XP reward. Complements the Daily Challenge. Seeded from week number, no server needed.</p>
+      </div>
+    </div>
+
+    <div class="option" data-choice="personal_records" onclick="toggleSelect(this)">
+      <div class="letter">🏅</div>
+      <div class="content">
+        <h3>Personal Records Per Mode</h3>
+        <p>Track fewest guesses and fastest time per mode. Show "PB!" badge on result screen when broken. Gives skilled players a goal beyond just winning.</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="section">
+  <h3>🎮 New Game Modes</h3>
+  <p class="subtitle" style="margin-bottom:8px;">Novel modes that no other Mastermind app has. Each changes the core loop meaningfully.</p>
+  <div class="options" data-multiselect>
+
+    <div class="option" data-choice="mystery_mode" onclick="toggleSelect(this)">
+      <div class="letter">❓</div>
+      <div class="content">
+        <h3>Mystery Mode</h3>
+        <p>The number of slots is hidden at the start. You know it's 3–5 but not which. After each guess, one more slot is revealed if you haven't found it. Genuinely unique — no other Mastermind game does this.</p>
+      </div>
+    </div>
+
+    <div class="option" data-choice="time_trial" onclick="toggleSelect(this)">
+      <div class="letter">⚡</div>
+      <div class="content">
+        <h3>Time Trial — 5 Puzzles</h3>
+        <p>Solve 5 puzzles back-to-back, total time recorded. No per-puzzle timer — just cumulative. Score = puzzles solved × speed bonus. Creates natural replayability and bragging rights.</p>
+      </div>
+    </div>
+
+    <div class="option" data-choice="duo_mode" onclick="toggleSelect(this)">
+      <div class="letter">⚔️</div>
+      <div class="content">
+        <h3>Duo Mode — Two Puzzles Side-by-Side</h3>
+        <p>Two different puzzles on screen simultaneously. Your guess applies to both at once (same color in that position is evaluated against both secrets). Wild puzzle-solving experience.</p>
+      </div>
+    </div>
+
+    <div class="option" data-choice="sudden_death" onclick="toggleSelect(this)">
+      <div class="letter">💀</div>
+      <div class="content">
+        <h3>Sudden Death</h3>
+        <p>One wrong guess and you lose instantly. No partial feedback safety net. Purely for expert players who find Classic too easy. Short, intense sessions.</p>
+      </div>
+    </div>
+
+    <div class="option" data-choice="sandbox" onclick="toggleSelect(this)">
+      <div class="letter">🏖️</div>
+      <div class="content">
+        <h3>Sandbox / Free Play</h3>
+        <p>Practice mode — no score, no XP, hints always free. You can also reveal the answer any time. Great for learning strategies or just relaxing. No monetization pressure at all.</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="section">
+  <h3>✨ Game Feel & Juice</h3>
+  <p class="subtitle" style="margin-bottom:8px;">Polish that makes the game feel premium. Small things with outsized impact.</p>
+  <div class="options" data-multiselect>
+
+    <div class="option" data-choice="combo_system" onclick="toggleSelect(this)">
+      <div class="letter">🔥</div>
+      <div class="content">
+        <h3>Combo System</h3>
+        <p>Win 2+ in a row without using hints → combo multiplier on XP (1.5×, 2×, 2.5×). A small flame icon shows your current combo. Breaks on loss or hint use. Makes win streaks feel electrifying.</p>
+      </div>
+    </div>
+
+    <div class="option" data-choice="puzzle_history" onclick="toggleSelect(this)">
+      <div class="letter">📚</div>
+      <div class="content">
+        <h3>Puzzle History / Archive</h3>
+        <p>See all your completed puzzles — date, mode, guesses used, the secret sequence. Gives players a sense of collection and progress. "You've solved 47 puzzles" feels meaningful.</p>
+      </div>
+    </div>
+
+    <div class="option" data-choice="reaction_messages" onclick="toggleSelect(this)">
+      <div class="letter">💬</div>
+      <div class="content">
+        <h3>Contextual Reaction Messages</h3>
+        <p>After each guess, show a short flavor message based on how close you are: "Getting warmer…", "2 exact — you're close!", "Cold start, but that's normal." Makes the board feel alive.</p>
+      </div>
+    </div>
+
+    <div class="option" data-choice="dot_trail" onclick="toggleSelect(this)">
+      <div class="letter">✨</div>
+      <div class="content">
+        <h3>Dot Trail Animation</h3>
+        <p>When you drag a color dot to a slot, it leaves a short color trail behind it. Subtle but satisfying. Costs almost nothing to implement with a Tween.</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="section">
+  <h3>🛍️ Shop Items (XP + Coins)</h3>
+  <p class="subtitle" style="margin-bottom:8px;">Things players actually want to buy. Mix of convenience and cosmetics.</p>
+  <div class="options" data-multiselect>
+
+    <div class="option" data-choice="shop_sound_packs" onclick="toggleSelect(this)">
+      <div class="letter">🎵</div>
+      <div class="content">
+        <h3>Sound Packs</h3>
+        <p>Replace the default procedural 8-bit sounds with themed packs: "Soft Piano", "Nature (chimes + birds)", "Retro Arcade". Buy with XP. The SoundManager already generates audio procedurally — new packs just swap parameters.</p>
+      </div>
+    </div>
+
+    <div class="option" data-choice="shop_emoji" onclick="toggleSelect(this)">
+      <div class="letter">🎨</div>
+      <div class="content">
+        <h3>Custom Share Emoji Packs</h3>
+        <p>Instead of 🟢🟡⬛ on your share grid, unlock custom sets: hearts ❤️🧡🖤, planets 🌍🌙⭐, flowers 🌸🌼🌑. Share grids become personal. Buy with XP.</p>
+      </div>
+    </div>
+
+    <div class="option" data-choice="shop_extra_guess" onclick="toggleSelect(this)">
+      <div class="letter">➕</div>
+      <div class="content">
+        <h3>Extra Guess Token</h3>
+        <p>Add 1 extra guess to any game before it starts. Buy with XP or coins. Different from second chance (which is post-loss and ad-gated). This is a pre-purchase safety net.</p>
+      </div>
+    </div>
+
+    <div class="option" data-choice="shop_xp_boost" onclick="toggleSelect(this)">
+      <div class="letter">⚡</div>
+      <div class="content">
+        <h3>XP Boost (1 hour)</h3>
+        <p>All XP earned for the next hour is doubled. Timed boosts create session urgency — "I have a boost running, let me play a few more." Buy with coins.</p>
+      </div>
+    </div>
+
+    <div class="option" data-choice="shop_board_skin" onclick="toggleSelect(this)">
+      <div class="letter">🖼️</div>
+      <div class="content">
+        <h3>Board Skins</h3>
+        <p>Change how the Wordle board looks: Minimal (no grid lines), Rounded (pill-shaped slots), Diamond (rotated 45°). Visual variety without changing gameplay. Buy with XP.</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="section">
+  <h3>📊 Stats & Social</h3>
+  <div class="options" data-multiselect>
+
+    <div class="option" data-choice="percentile" onclick="toggleSelect(this)">
+      <div class="letter">📈</div>
+      <div class="content">
+        <h3>Percentile Comparison</h3>
+        <p>"You solved today's Daily in 4 guesses — better than 68% of players." Computed from simulated distribution (no server). Makes every Daily feel competitive even alone.</p>
+      </div>
+    </div>
+
+    <div class="option" data-choice="stats_graphs" onclick="toggleSelect(this)">
+      <div class="letter">📉</div>
+      <div class="content">
+        <h3>Stats Deep Dive</h3>
+        <p>Win rate trend over last 30 games, average guesses per mode, best/worst day of week. Charts built with simple Canvas drawing — no library needed.</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:16px;">My top picks if I had to choose 5: <strong>Streak Freeze, Auto-Save, Combo System, Mystery Mode, Percentile Comparison.</strong> These have the highest player impact for the least code.</p>

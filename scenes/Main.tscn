@@ -1,0 +1,436 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/Main.gd" id="1_fgv8d"]
+[ext_resource type="Script" path="res://scripts/Tutorial.gd" id="2_tutorial"]
+
+[node name="Main" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_fgv8d")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.0352941, 0.054902, 0.101961, 1)
+
+[node name="MenuLayer" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MenuPanel" type="PanelContainer" parent="MenuLayer"]
+custom_minimum_size = Vector2(620, 0)
+
+[node name="MenuMargin" type="MarginContainer" parent="MenuLayer/MenuPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 42
+theme_override_constants/margin_top = 42
+theme_override_constants/margin_right = 42
+theme_override_constants/margin_bottom = 42
+
+[node name="MenuVBox" type="VBoxContainer" parent="MenuLayer/MenuPanel/MenuMargin"]
+layout_mode = 2
+theme_override_constants/separation = 20
+alignment = 1
+
+[node name="TitleLabel" type="Label" parent="MenuLayer/MenuPanel/MenuMargin/MenuVBox"]
+layout_mode = 2
+text = "Guess the Dots"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 50
+
+[node name="SubtitleLabel" type="Label" parent="MenuLayer/MenuPanel/MenuMargin/MenuVBox"]
+layout_mode = 2
+text = "Find the hidden dot pattern in 10 guesses. Colors can repeat."
+horizontal_alignment = 1
+autowrap_mode = 3
+modulate = Color(0.854902, 0.894118, 0.952941, 0.86)
+
+[node name="NewGameButton" type="Button" parent="MenuLayer/MenuPanel/MenuMargin/MenuVBox"]
+custom_minimum_size = Vector2(0, 74)
+layout_mode = 2
+text = "New Game"
+
+[node name="HowToPlayButton" type="Button" parent="MenuLayer/MenuPanel/MenuMargin/MenuVBox"]
+custom_minimum_size = Vector2(0, 74)
+layout_mode = 2
+text = "How to Play"
+
+[node name="QuitButton" type="Button" parent="MenuLayer/MenuPanel/MenuMargin/MenuVBox"]
+custom_minimum_size = Vector2(0, 74)
+layout_mode = 2
+text = "Quit"
+
+[node name="GameLayer" type="MarginContainer" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 36
+theme_override_constants/margin_top = 36
+theme_override_constants/margin_right = 36
+theme_override_constants/margin_bottom = 36
+
+[node name="GameVBox" type="VBoxContainer" parent="GameLayer"]
+layout_mode = 2
+theme_override_constants/separation = 22
+
+[node name="HeaderPanel" type="PanelContainer" parent="GameLayer/GameVBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="HeaderMargin" type="MarginContainer" parent="GameLayer/GameVBox/HeaderPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 22
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 22
+
+[node name="HeaderVBox" type="VBoxContainer" parent="GameLayer/GameVBox/HeaderPanel/HeaderMargin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="HeaderTitleLabel" type="Label" parent="GameLayer/GameVBox/HeaderPanel/HeaderMargin/HeaderVBox"]
+layout_mode = 2
+text = "Build your guess"
+theme_override_font_sizes/font_size = 34
+
+[node name="RoundInfoLabel" type="Label" parent="GameLayer/GameVBox/HeaderPanel/HeaderMargin/HeaderVBox"]
+layout_mode = 2
+text = "Code length: 0 dots"
+modulate = Color(0.854902, 0.894118, 0.952941, 0.86)
+
+[node name="GuessCounterLabel" type="Label" parent="GameLayer/GameVBox/HeaderPanel/HeaderMargin/HeaderVBox"]
+layout_mode = 2
+text = "Guess 1 / 10"
+modulate = Color(0.94902, 0.933333, 0.658824, 1)
+
+[node name="StatusLabel" type="Label" parent="GameLayer/GameVBox/HeaderPanel/HeaderMargin/HeaderVBox"]
+layout_mode = 2
+text = "Tap a color to fill the next slot, or drag it to a specific slot."
+autowrap_mode = 3
+
+[node name="GuessPanel" type="PanelContainer" parent="GameLayer/GameVBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="GuessMargin" type="MarginContainer" parent="GameLayer/GameVBox/GuessPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 22
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 22
+
+[node name="GuessVBox" type="VBoxContainer" parent="GameLayer/GameVBox/GuessPanel/GuessMargin"]
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="SlotsLabel" type="Label" parent="GameLayer/GameVBox/GuessPanel/GuessMargin/GuessVBox"]
+layout_mode = 2
+text = "Current guess"
+
+[node name="GuessRow" type="HBoxContainer" parent="GameLayer/GameVBox/GuessPanel/GuessMargin/GuessVBox"]
+layout_mode = 2
+theme_override_constants/separation = 18
+alignment = 1
+
+[node name="SlotsContainer" type="HBoxContainer" parent="GameLayer/GameVBox/GuessPanel/GuessMargin/GuessVBox/GuessRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 14
+alignment = 1
+
+[node name="SubmitButton" type="Button" parent="GameLayer/GameVBox/GuessPanel/GuessMargin/GuessVBox/GuessRow"]
+custom_minimum_size = Vector2(110, 92)
+layout_mode = 2
+text = "✓"
+theme_override_font_sizes/font_size = 34
+
+[node name="ActionsRow" type="HBoxContainer" parent="GameLayer/GameVBox/GuessPanel/GuessMargin/GuessVBox"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="ClearButton" type="Button" parent="GameLayer/GameVBox/GuessPanel/GuessMargin/GuessVBox/ActionsRow"]
+custom_minimum_size = Vector2(0, 58)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Clear Guess"
+
+[node name="UndoButton" type="Button" parent="GameLayer/GameVBox/GuessPanel/GuessMargin/GuessVBox/ActionsRow"]
+custom_minimum_size = Vector2(0, 58)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Undo"
+
+[node name="HintButton" type="Button" parent="GameLayer/GameVBox/GuessPanel/GuessMargin/GuessVBox"]
+custom_minimum_size = Vector2(0, 58)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Watch Ad for Hint — Reveal 1 Dot"
+
+[node name="PalettePanel" type="PanelContainer" parent="GameLayer/GameVBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="PaletteMargin" type="MarginContainer" parent="GameLayer/GameVBox/PalettePanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 22
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 22
+
+[node name="PaletteVBox" type="VBoxContainer" parent="GameLayer/GameVBox/PalettePanel/PaletteMargin"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="PaletteTitleLabel" type="Label" parent="GameLayer/GameVBox/PalettePanel/PaletteMargin/PaletteVBox"]
+layout_mode = 2
+text = "Palette"
+
+[node name="PaletteContainer" type="HBoxContainer" parent="GameLayer/GameVBox/PalettePanel/PaletteMargin/PaletteVBox"]
+layout_mode = 2
+theme_override_constants/separation = 20
+alignment = 1
+
+[node name="SelectionLabel" type="Label" parent="GameLayer/GameVBox/PalettePanel/PaletteMargin/PaletteVBox"]
+layout_mode = 2
+text = "3 slots remaining"
+modulate = Color(0.854902, 0.894118, 0.952941, 0.86)
+
+[node name="HistoryPanel" type="PanelContainer" parent="GameLayer/GameVBox"]
+custom_minimum_size = Vector2(0, 180)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="HistoryMargin" type="MarginContainer" parent="GameLayer/GameVBox/HistoryPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 22
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 22
+
+[node name="HistoryVBox" type="VBoxContainer" parent="GameLayer/GameVBox/HistoryPanel/HistoryMargin"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 16
+
+[node name="HistoryTitleLabel" type="Label" parent="GameLayer/GameVBox/HistoryPanel/HistoryMargin/HistoryVBox"]
+layout_mode = 2
+text = "Previous guesses"
+
+[node name="HistoryScroll" type="ScrollContainer" parent="GameLayer/GameVBox/HistoryPanel/HistoryMargin/HistoryVBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="HistoryContainer" type="VBoxContainer" parent="GameLayer/GameVBox/HistoryPanel/HistoryMargin/HistoryVBox/HistoryScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 12
+
+[node name="ResultLayer" type="Control" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+
+[node name="Overlay" type="ColorRect" parent="ResultLayer"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+color = Color(0, 0, 0, 0.55)
+
+[node name="PopupCenter" type="CenterContainer" parent="ResultLayer/Overlay"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="PopupPanel" type="PanelContainer" parent="ResultLayer/Overlay/PopupCenter"]
+custom_minimum_size = Vector2(680, 0)
+layout_mode = 2
+
+[node name="PopupMargin" type="MarginContainer" parent="ResultLayer/Overlay/PopupCenter/PopupPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 34
+theme_override_constants/margin_top = 30
+theme_override_constants/margin_right = 34
+theme_override_constants/margin_bottom = 30
+
+[node name="PopupVBox" type="VBoxContainer" parent="ResultLayer/Overlay/PopupCenter/PopupPanel/PopupMargin"]
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="ResultTitleLabel" type="Label" parent="ResultLayer/Overlay/PopupCenter/PopupPanel/PopupMargin/PopupVBox"]
+layout_mode = 2
+text = "You Win!"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 42
+
+[node name="ResultMessageLabel" type="Label" parent="ResultLayer/Overlay/PopupCenter/PopupPanel/PopupMargin/PopupVBox"]
+layout_mode = 2
+text = "You cracked the code."
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="ResultDotsContainer" type="HBoxContainer" parent="ResultLayer/Overlay/PopupCenter/PopupPanel/PopupMargin/PopupVBox"]
+layout_mode = 2
+theme_override_constants/separation = 12
+alignment = 1
+
+[node name="ResultButtons" type="HBoxContainer" parent="ResultLayer/Overlay/PopupCenter/PopupPanel/PopupMargin/PopupVBox"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="ResultPlayAgainButton" type="Button" parent="ResultLayer/Overlay/PopupCenter/PopupPanel/PopupMargin/PopupVBox/ResultButtons"]
+custom_minimum_size = Vector2(0, 64)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Play Again"
+
+[node name="ResultMenuButton" type="Button" parent="ResultLayer/Overlay/PopupCenter/PopupPanel/PopupMargin/PopupVBox/ResultButtons"]
+custom_minimum_size = Vector2(0, 64)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Main Menu"
+
+[node name="GameHamburgerButton" type="Button" parent="."]
+visible = false
+layout_mode = 1
+anchor_left = 1.0
+anchor_right = 1.0
+anchor_top = 0.0
+anchor_bottom = 0.0
+offset_left = -116.0
+offset_right = -36.0
+offset_top = 36.0
+offset_bottom = 116.0
+text = "☰"
+theme_override_font_sizes/font_size = 42
+
+[node name="HamburgerMenuLayer" type="Control" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+
+[node name="HamburgerOverlay" type="ColorRect" parent="HamburgerMenuLayer"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+color = Color(0, 0, 0, 0.60)
+
+[node name="MenuCenter" type="CenterContainer" parent="HamburgerMenuLayer/HamburgerOverlay"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MenuPopupPanel" type="PanelContainer" parent="HamburgerMenuLayer/HamburgerOverlay/MenuCenter"]
+custom_minimum_size = Vector2(640, 0)
+layout_mode = 2
+
+[node name="MenuPopupMargin" type="MarginContainer" parent="HamburgerMenuLayer/HamburgerOverlay/MenuCenter/MenuPopupPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 36
+theme_override_constants/margin_top = 36
+theme_override_constants/margin_right = 36
+theme_override_constants/margin_bottom = 36
+
+[node name="MenuPopupVBox" type="VBoxContainer" parent="HamburgerMenuLayer/HamburgerOverlay/MenuCenter/MenuPopupPanel/MenuPopupMargin"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="MenuTitleLabel" type="Label" parent="HamburgerMenuLayer/HamburgerOverlay/MenuCenter/MenuPopupPanel/MenuPopupMargin/MenuPopupVBox"]
+layout_mode = 2
+text = "Menu"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 38
+
+[node name="NewRoundMenuButton" type="Button" parent="HamburgerMenuLayer/HamburgerOverlay/MenuCenter/MenuPopupPanel/MenuPopupMargin/MenuPopupVBox"]
+custom_minimum_size = Vector2(0, 72)
+layout_mode = 2
+text = "New Round"
+
+[node name="MainMenuMenuButton" type="Button" parent="HamburgerMenuLayer/HamburgerOverlay/MenuCenter/MenuPopupPanel/MenuPopupMargin/MenuPopupVBox"]
+custom_minimum_size = Vector2(0, 72)
+layout_mode = 2
+text = "Main Menu"
+
+[node name="HowToPlayMenuButton" type="Button" parent="HamburgerMenuLayer/HamburgerOverlay/MenuCenter/MenuPopupPanel/MenuPopupMargin/MenuPopupVBox"]
+custom_minimum_size = Vector2(0, 72)
+layout_mode = 2
+text = "How to Play"
+
+[node name="MenuSeparator" type="HSeparator" parent="HamburgerMenuLayer/HamburgerOverlay/MenuCenter/MenuPopupPanel/MenuPopupMargin/MenuPopupVBox"]
+layout_mode = 2
+
+[node name="SettingsTitleLabel" type="Label" parent="HamburgerMenuLayer/HamburgerOverlay/MenuCenter/MenuPopupPanel/MenuPopupMargin/MenuPopupVBox"]
+layout_mode = 2
+text = "Settings"
+theme_override_font_sizes/font_size = 30
+
+[node name="HapticsRow" type="HBoxContainer" parent="HamburgerMenuLayer/HamburgerOverlay/MenuCenter/MenuPopupPanel/MenuPopupMargin/MenuPopupVBox"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="HapticsLabel" type="Label" parent="HamburgerMenuLayer/HamburgerOverlay/MenuCenter/MenuPopupPanel/MenuPopupMargin/MenuPopupVBox/HapticsRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+text = "Haptic Feedback"
+
+[node name="HapticsToggle" type="CheckButton" parent="HamburgerMenuLayer/HamburgerOverlay/MenuCenter/MenuPopupPanel/MenuPopupMargin/MenuPopupVBox/HapticsRow"]
+layout_mode = 2
+button_pressed = true
+text = "On"
+
+[node name="CloseMenuButton" type="Button" parent="HamburgerMenuLayer/HamburgerOverlay/MenuCenter/MenuPopupPanel/MenuPopupMargin/MenuPopupVBox"]
+custom_minimum_size = Vector2(0, 72)
+layout_mode = 2
+text = "Close"
+
+[node name="TutorialLayer" type="Control" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+script = ExtResource("2_tutorial")
