@@ -497,7 +497,10 @@ func _build_palette(count: int = 5) -> void:
 		dot.color_name  = str(PALETTE[index]["name"])
 		dot.dot_color   = PALETTE[index]["color"]
 		dot.pressed.connect(_on_palette_dot_pressed.bind(index))
-		dot.apply_colorblind(SaveData.colorblind_enabled, COLORBLIND_SHAPES[index])
+		dot.apply_colorblind(
+			SaveData.colorblind_enabled,
+			COLORBLIND_SHAPES[index] if index < COLORBLIND_SHAPES.size() else ""
+		)
 		palette_container.add_child(dot)
 		palette_buttons.append(dot)
 
