@@ -612,15 +612,21 @@ func _flip_row_reveal(row: Dictionary, item: Dictionary) -> void:
 		var tw1 := create_tween()
 		tw1.tween_property(slot, "rotation_degrees", 90.0, 0.1).set_trans(Tween.TRANS_SINE)
 		await tw1.finished
-		(slot as SlotButton).set_filled_visual(dot_color, "")
+		if not is_instance_valid(slot):
+			return
+		_set_slot_filled(slot, dot_color)
 
 		# Phase 2: rotate 90 → 0 degrees
 		var tw2 := create_tween()
 		tw2.tween_property(slot, "rotation_degrees", 0.0, 0.1).set_trans(Tween.TRANS_SINE)
 		await tw2.finished
+		if not is_instance_valid(slot):
+			return
 
 		if s < slots.size() - 1:
 			await get_tree().create_timer(stagger_sec).timeout
+			if not is_inside_tree():
+				return
 
 	# Update pips after all flips
 	_update_pips(row.pips, exact, misplaced)
@@ -989,6 +995,8 @@ var _pending_coins: int  = 0
 var _pending_levels: int = 0
 
 func _finish_game(did_win: bool, message: String) -> void:
+	if result_layer.visible:
+		return  # already showing result — prevent double-call
 	round_active        = false
 	_blitz_timer_active = false
 	_refresh_guess_ui()
