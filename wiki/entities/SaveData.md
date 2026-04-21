@@ -67,18 +67,15 @@ Autoload singleton. Owns all persistent player state. Everything that survives b
 - `season_badge: String`
 - `season_config_cache: Dictionary`
 
-### [settings] *(consolidated)*
-- `colorblind_enabled: bool`
+### [settings] *(implemented 2026-04-20)*
+- `colorblind_enabled: bool` — live toggle in Settings sheet
 - `sound_enabled: bool`
-- `haptics_enabled: bool` (migrated from separate file)
-- `feedback_mode: String` — `"count_only"` or `"per_dot"`
+- `haptics_enabled_migrated: bool` — migrated from old `user://settings.cfg` (one-time)
 
-### [retention] *(new)*
-- `consecutive_losses: int`
-- `current_combo: int`
-- `easy_wins: int`
-- `loss_count_since_ad: int`
-- `next_ad_after_losses: int`
+### [retention]
+- `easy_wins: int` — nudge toast at 3 ("Ready for Classic?")
+- `custom_puzzles_played: int`
+- `daily_best_time_ms: int`
 
 ### [resume] *(new)*
 - `resume_mode: int` (-1 = none)
