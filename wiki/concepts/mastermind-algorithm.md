@@ -7,35 +7,45 @@ type: concept
 
 Core guess evaluation logic. Returns exact matches and misplaced matches for each guess.
 
-## Implementation
+## Implementation (Updated 2026-04-20)
 `_evaluate_guess(guess: Array[int]) -> Dictionary` in [[entities/Main]].
+
+Now uses two-pass algorithm to also compute `per_dot` array:
 
 ```gdscript
 func _evaluate_guess(guess: Array[int]) -> Dictionary:
     var exact := 0
-    var secret_counts := {}
-    var guess_counts := {}
-
-    for index in range(secret_sequence.size()):
-        if guess[index] == secret_sequence[index]:
+    var per_dot: Array = []
+    var secret_remaining := secret_sequence.duplicate()
+    var guess_remaining  := guess.duplicate()
+    # Pass 1: exact
+    for i in range(guess.size()):
+        if guess[i] == secret_sequence[i]:
             exact += 1
+            per_dot.append("exact")
+            secret_remaining[i] = -1
+            guess_remaining[i]  = -1
         else:
-            secret_counts[secret_sequence[index]] = secret_counts.get(secret_sequence[index], 0) + 1
-            guess_counts[guess[index]] = guess_counts.get(guess[index], 0) + 1
-
+            per_dot.append("absent")
+    # Pass 2: misplaced
     var misplaced := 0
-    for ci in guess_counts.keys():
-        misplaced += min(guess_counts[ci], secret_counts.get(ci, 0))
-
-    return {"exact": exact, "misplaced": misplaced}
+    for i in range(guess.size()):
+        if guess_remaining[i] == -1: continue
+        var found := secret_remaining.find(guess_remaining[i])
+        if found != -1:
+            misplaced += 1
+            per_dot[i] = "misplaced"
+            secret_remaining[found] = -1
+    return {"exact": exact, "misplaced": misplaced, "per_dot": per_dot}
 ```
 
 ## Feedback Display
-| Pip | Meaning | Cyberpunk label |
-|-----|---------|----------------|
-| Green ◆ | Exact match — right color, right slot | LOCKED |
-| Yellow ◆ | Misplaced — right color, wrong slot | SIGNAL |
-| (empty) | No match | NULL SIGNAL |
+| Pip | Meaning |
+|-----|---------|
+| Green pip | Exact match — right color, right slot |
+| Yellow pip | Misplaced — right color, wrong slot |
+| (count-only) | Classic/Blitz/Hard/Zen/Campaign: total counts shown as pips |
+| Colored ring | Easy mode: per-dot ring (green=exact, yellow=misplaced) |
 
 ## Win Condition
 `exact == slots_needed` — all positions correct.
