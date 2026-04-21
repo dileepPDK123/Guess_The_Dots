@@ -1240,6 +1240,8 @@ func _trigger_dot_burst() -> void:
 	if not has_node("GameLayer/GameVBox/BoardVBox"):
 		return
 	var board_rect := ($GameLayer/GameVBox/BoardVBox as Control).get_global_rect()
+	if board_rect.size == Vector2.ZERO:
+		return
 	var board_center := board_rect.get_center()
 	var num_particles := 14
 	var colors: Array = secret_sequence.map(func(ci: int) -> Color: return PALETTE[ci]["color"])
@@ -1271,7 +1273,7 @@ func _trigger_dot_burst() -> void:
 		tw.tween_property(dot, "global_position", target, dur)\
 			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 		tw.tween_property(dot, "modulate:a", 0.0, dur).set_ease(Tween.EASE_IN)
-		tw.tween_callback(dot.queue_free).set_delay(dur)
+		tw.finished.connect(dot.queue_free)
 
 func _reveal_answer_dots() -> void:
 	for child in result_dots_container.get_children():
