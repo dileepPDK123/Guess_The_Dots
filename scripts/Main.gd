@@ -201,7 +201,8 @@ func _ready() -> void:
 	result_menu_button.pressed.connect(_on_result_menu_pressed)
 
 	# Hamburger
-	hamburger_button.pressed.connect(_open_hamburger_menu)
+	hamburger_button.text = "⋯"
+	hamburger_button.pressed.connect(_open_settings_sheet)
 	new_round_menu_button.pressed.connect(_on_new_round_from_menu)
 	main_menu_menu_button.pressed.connect(_on_main_menu_from_menu)
 	how_to_play_button.pressed.connect(_on_how_to_play_from_menu)
@@ -461,6 +462,48 @@ func _open_hamburger_menu() -> void:
 
 func _close_hamburger_menu() -> void:
 	hamburger_menu_layer.visible = false
+
+func _open_settings_sheet() -> void:
+	hamburger_menu_layer.visible = false
+	var sheet := _build_bottom_sheet("Settings")
+	var vbox := sheet.get_node("Content") as VBoxContainer
+
+	var items := [
+		{"label": "New Round",   "action": func() -> void: _on_new_round_from_menu()},
+		{"label": "Main Menu",   "action": func() -> void: _on_main_menu_from_menu()},
+		{"label": "How to Play", "action": func() -> void: tutorial_layer.start()},
+	]
+	for item in items:
+		var btn := Button.new()
+		btn.text = item["label"]
+		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		btn.custom_minimum_size = Vector2(0, 52)
+		btn.pressed.connect(item["action"])
+		vbox.add_child(btn)
+
+	# Color-Blind toggle
+	var cb_row := HBoxContainer.new()
+	var cb_lbl := Label.new()
+	cb_lbl.text = "Color-Blind Mode"
+	cb_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var cb_toggle := CheckButton.new()
+	cb_toggle.button_pressed = SaveData.colorblind_enabled
+	cb_toggle.toggled.connect(func(on: bool) -> void: _toggle_colorblind(on))
+	cb_row.add_child(cb_lbl)
+	cb_row.add_child(cb_toggle)
+	vbox.add_child(cb_row)
+
+	# Haptics toggle
+	var hap_row := HBoxContainer.new()
+	var hap_lbl := Label.new()
+	hap_lbl.text = "Haptics"
+	hap_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var hap_toggle := CheckButton.new()
+	hap_toggle.button_pressed = haptics_enabled
+	hap_toggle.toggled.connect(func(on: bool) -> void: _on_haptics_toggled(on))
+	hap_row.add_child(hap_lbl)
+	hap_row.add_child(hap_toggle)
+	vbox.add_child(hap_row)
 
 func _on_overlay_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
