@@ -207,7 +207,6 @@ func _ready() -> void:
 	main_menu_menu_button.pressed.connect(_on_main_menu_from_menu)
 	how_to_play_button.pressed.connect(_on_how_to_play_from_menu)
 	close_menu_button.pressed.connect(_close_hamburger_menu)
-	haptics_toggle.toggled.connect(_on_haptics_toggled)
 	hamburger_overlay.gui_input.connect(_on_overlay_input)
 
 	# Tutorial
@@ -456,10 +455,6 @@ func _on_result_menu_pressed() -> void:
 # =============================================================================
 # Hamburger menu
 # =============================================================================
-func _open_hamburger_menu() -> void:
-	new_round_menu_button.disabled = round_active
-	hamburger_menu_layer.visible = true
-
 func _close_hamburger_menu() -> void:
 	hamburger_menu_layer.visible = false
 
