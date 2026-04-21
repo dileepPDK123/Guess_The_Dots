@@ -1348,6 +1348,10 @@ func _finish_game(did_win: bool, message: String) -> void:
 	_pending_levels = SaveData.add_xp(_pending_xp)
 	SaveData.add_coins(_pending_coins)
 
+	var newly_reached := SeasonManager.add_season_xp(xp_earned)
+	if not newly_reached.is_empty():
+		_show_toast("Milestone reached! Open Rewards to claim.")
+
 	_check_achievements_after_game(did_win)
 	if current_mode == GameMode.EASY and did_win:
 		SaveData.easy_wins += 1

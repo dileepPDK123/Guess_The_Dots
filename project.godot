@@ -28,6 +28,7 @@ AchievementManager="*res://scripts/AchievementManager.gd"
 SoundManager="*res://scripts/SoundManager.gd"
 ComboManager="*res://scripts/ComboManager.gd"
 ShopManager="*res://scripts/ShopManager.gd"
+SeasonManager="*res://scripts/SeasonManager.gd"
 
 [display]
 
