@@ -8,7 +8,7 @@ extends Control
 ##   HARD     — 5-6 slots, 6 colors, 10 guesses; previous "exact" slots are locked
 ##   ZEN      — 4 slots, 5 colors, unlimited guesses, no timer, relaxed
 
-enum GameMode { CLASSIC, BLITZ, HARD, ZEN, CAMPAIGN, EASY, MYSTERY, TIME_TRIAL }
+enum GameMode { CLASSIC, BLITZ, HARD, ZEN, CAMPAIGN, EASY, MYSTERY, TIME_TRIAL, DUO }
 
 class _BlitzRingControl extends Control:
 	var progress: float = 1.0
@@ -148,6 +148,13 @@ var _time_trial_total_time_ms: int = 0
 var _time_trial_puzzle_times: Array[int] = []
 var _time_trial_start_ms: int = 0
 const TIME_TRIAL_TOTAL_PUZZLES := 5
+
+# ── Duo mode ──────────────────────────────────────────────────────────────────
+var _duo_secret_b: Array[int] = []
+var _duo_history_b: Array = []
+var _duo_solved_a: bool = false
+var _duo_solved_b: bool = false
+var _duo_board_b_rows: Array = []
 
 # ── Overlay layers (built procedurally) ──────────────────────────────────────
 var _mode_select_layer: Control
@@ -431,6 +438,9 @@ func start_new_game(mode: GameMode = GameMode.CLASSIC, campaign_level: int = 1) 
 		GameMode.TIME_TRIAL:
 			_start_time_trial()
 			return
+		GameMode.DUO:
+			_start_duo_game()
+			return
 
 	_tracker_absent.clear()
 	_tracker_present.clear()
@@ -501,6 +511,117 @@ func _start_mystery_game() -> void:
 	_update_palette_selection()
 	_refresh_guess_ui()
 	_update_header_text("TAP A COLOR TO FILL THE NEXT SLOT, OR DRAG IT IN.")
+
+func _start_duo_game() -> void:
+	current_mode = GameMode.DUO
+	menu_layer.visible           = false
+	game_layer.visible           = true
+	result_layer.visible         = false
+	_result_sheet_open           = false
+	hamburger_button.visible     = true
+	hamburger_menu_layer.visible = false
+	AdManager.hide_banner()
+	round_active             = true
+	_second_chance_used      = false
+	_xp_doubler_active       = false
+	_blitz_timer_active      = false
+	_blitz_time_remaining    = BLITZ_TIME
+	_hint_ad_pending         = false
+	selected_color_index     = -1
+	if _blitz_ring_node != null and is_instance_valid(_blitz_ring_node):
+		_blitz_ring_node.queue_free()
+		_blitz_ring_node = null
+	ComboManager.start_round()
+	slots_needed  = 4
+	MAX_GUESSES   = 10
+	secret_sequence.clear()
+	_populate_sequence(5)
+	_duo_secret_b.clear()
+	for _i in range(slots_needed):
+		_duo_secret_b.append(rng.randi_range(0, 4))
+	_duo_solved_a = false
+	_duo_solved_b = false
+	_duo_history_b.clear()
+	guess_history.clear()
+	current_guess.clear()
+	current_guess.resize(slots_needed)
+	for i in range(slots_needed):
+		current_guess[i] = -1
+	_hard_locked_slots.clear()
+	_tracker_absent.clear()
+	_tracker_present.clear()
+	_board_built = false
+	_board_rows.clear()
+	_duo_board_b_rows.clear()
+	_active_row_index = 0
+	# Remove existing board containers if present
+	if has_node("GameLayer/GameVBox/BoardVBox"):
+		var old := $GameLayer/GameVBox/BoardVBox
+		old.name = "_BoardVBoxOld"
+		old.queue_free()
+	if has_node("GameLayer/GameVBox/DuoHBox"):
+		var old2 := $GameLayer/GameVBox/DuoHBox
+		old2.name = "_DuoHBoxOld"
+		old2.queue_free()
+	_build_palette(5)
+	_build_elimination_tracker()
+	await get_tree().process_frame
+	_build_duo_boards()
+	_update_palette_selection()
+	_refresh_guess_ui()
+	_update_header_text("TAP A COLOR — SAME GUESS APPLIES TO BOTH CODES.")
+
+func _build_duo_boards() -> void:
+	# Remove old duo container if it exists
+	if has_node("GameLayer/GameVBox/DuoHBox"):
+		var old := $GameLayer/GameVBox/DuoHBox
+		old.name = "_DuoHBoxOld"
+		old.queue_free()
+
+	var hbox := HBoxContainer.new()
+	hbox.name = "DuoHBox"
+	hbox.add_theme_constant_override("separation", 8)
+	hbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	# Board A
+	_board_rows.clear()
+	var vbox_a := VBoxContainer.new()
+	vbox_a.name = "DuoBoardA"
+	vbox_a.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var lbl_a := Label.new()
+	lbl_a.text = "A"
+	lbl_a.add_theme_color_override("font_color", Color("#6B4E71"))
+	lbl_a.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox_a.add_child(lbl_a)
+	for i in range(MAX_GUESSES):
+		var row_data := _build_board_row(i)
+		vbox_a.add_child(row_data.container)
+		_board_rows.append(row_data)
+
+	# Board B
+	_duo_board_b_rows.clear()
+	var vbox_b := VBoxContainer.new()
+	vbox_b.name = "DuoBoardB"
+	vbox_b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var lbl_b := Label.new()
+	lbl_b.text = "B"
+	lbl_b.add_theme_color_override("font_color", Color("#6B4E71"))
+	lbl_b.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox_b.add_child(lbl_b)
+	for i in range(MAX_GUESSES):
+		var row_data := _build_board_row(i)
+		vbox_b.add_child(row_data.container)
+		_duo_board_b_rows.append(row_data)
+
+	hbox.add_child(vbox_a)
+	hbox.add_child(vbox_b)
+
+	var game_vbox := $GameLayer/GameVBox as VBoxContainer
+	game_vbox.add_child(hbox)
+	game_vbox.move_child(hbox, 1)  # after header (index 0)
+
+	_board_built = true
+	_connect_active_row_signals()
 
 func _start_time_trial() -> void:
 	current_mode = GameMode.TIME_TRIAL
@@ -1151,6 +1272,53 @@ func _grant_hint() -> bool:
 func _on_submit_pressed() -> void:
 	if not round_active or not _is_guess_complete():
 		return
+
+	# ── Duo mode ──────────────────────────────────────────────────────────────
+	if current_mode == GameMode.DUO:
+		var guess_copy_duo: Array[int] = []
+		guess_copy_duo.assign(current_guess)
+		var feedback_a := _evaluate_guess_against(guess_copy_duo, secret_sequence)
+		var feedback_b := _evaluate_guess_against(guess_copy_duo, _duo_secret_b)
+		var entry_a := {
+			"values":    guess_copy_duo,
+			"exact":     int(feedback_a["exact"]),
+			"misplaced": int(feedback_a["misplaced"]),
+			"per_dot":   feedback_a["per_dot"],
+		}
+		var entry_b := {
+			"values":    guess_copy_duo,
+			"exact":     int(feedback_b["exact"]),
+			"misplaced": int(feedback_b["misplaced"]),
+			"per_dot":   feedback_b["per_dot"],
+		}
+		guess_history.append(entry_a)
+		_duo_history_b.append(entry_b)
+		_vibrate(35)
+		SoundManager.play("submit")
+		var row_index := guess_history.size() - 1
+		round_active = false
+		await _flip_row_reveal(_board_rows[row_index], entry_a)
+		_apply_past_row(_duo_board_b_rows[row_index], entry_b)
+		round_active = true
+		_active_row_index = guess_history.size()
+		if _active_row_index < _board_rows.size():
+			_connect_active_row_signals()
+		if int(feedback_a["exact"]) == slots_needed:
+			_duo_solved_a = true
+		if int(feedback_b["exact"]) == slots_needed:
+			_duo_solved_b = true
+		for i in range(current_guess.size()):
+			current_guess[i] = -1
+		_refresh_guess_ui()
+		_update_palette_selection()
+		_update_header_text("LOCKED A: %d  ·  LOCKED B: %d" % [int(feedback_a["exact"]), int(feedback_b["exact"])])
+		if _duo_solved_a and _duo_solved_b:
+			_finish_game(true, "Both codes cracked!")
+		elif guess_history.size() >= MAX_GUESSES:
+			_finish_game(false, "Out of guesses")
+		return
+	# ── End Duo mode ───────────────────────────────────────────────────────────
+
 	var guess_copy: Array[int] = []
 	guess_copy.assign(current_guess)
 	var result := _evaluate_guess(guess_copy)
@@ -1258,6 +1426,30 @@ func _evaluate_guess(guess: Array[int]) -> Dictionary:
 			per_dot[i] = "misplaced"
 			secret_remaining[found] = -1
 
+	return {"exact": exact, "misplaced": misplaced, "per_dot": per_dot}
+
+func _evaluate_guess_against(guess: Array[int], secret: Array[int]) -> Dictionary:
+	var exact := 0
+	var per_dot: Array = []
+	var secret_remaining := secret.duplicate()
+	var guess_remaining  := guess.duplicate()
+	for i in range(guess.size()):
+		if guess[i] == secret[i]:
+			exact += 1
+			per_dot.append("exact")
+			secret_remaining[i] = -1
+			guess_remaining[i]  = -1
+		else:
+			per_dot.append("absent")
+	var misplaced := 0
+	for i in range(guess.size()):
+		if guess_remaining[i] == -1:
+			continue
+		var found := secret_remaining.find(guess_remaining[i])
+		if found != -1:
+			misplaced += 1
+			per_dot[i] = "misplaced"
+			secret_remaining[found] = -1
 	return {"exact": exact, "misplaced": misplaced, "per_dot": per_dot}
 
 # =============================================================================
@@ -1955,6 +2147,7 @@ func _open_mode_select() -> void:
 		{"mode": GameMode.CAMPAIGN, "name": "Campaign", "desc": "100 levels"},
 		{"mode": GameMode.MYSTERY,    "name": "Mystery",    "desc": "Slots hidden · 12 guesses"},
 		{"mode": GameMode.TIME_TRIAL, "name": "Time Trial", "desc": "5 puzzles · fastest wins"},
+		{"mode": GameMode.DUO,        "name": "Duo",        "desc": "Two codes · shared guesses"},
 	]
 
 	var grid := GridContainer.new()
