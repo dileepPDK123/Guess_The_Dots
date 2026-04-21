@@ -86,6 +86,50 @@ var guess_distribution_easy: Array    = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 var campaign_progress: Dictionary = {}
 var campaign_max_unlocked: int = 1   # highest level the player may start
 
+# ── Ad system ─────────────────────────────────────────────────────────────────
+var loss_count_since_ad: int = 0
+var next_ad_after_losses: int = 3
+
+# ── Consumable tokens ─────────────────────────────────────────────────────────
+# hint_tokens already exists; add the rest:
+var second_chance_tokens: int = 0
+var extra_guess_tokens: int = 0
+var streak_freezes: int = 0
+
+# ── XP Boost ──────────────────────────────────────────────────────────────────
+var xp_boost_end_time: int = 0   # Unix timestamp; 0 = inactive
+
+# ── Season ────────────────────────────────────────────────────────────────────
+var season_xp: int = 0
+var season_number: int = 1
+var season_claimed: Array = [false, false, false, false, false]
+var season_badge: String = ""
+var season_config_cache: Dictionary = {}
+
+# ── Retention ─────────────────────────────────────────────────────────────────
+var consecutive_losses: int = 0
+var last_first_win_date: String = ""
+var weekly_last_week: int = 0
+var personal_bests: Dictionary = {}   # "MODE_NAME" -> {min_guesses, min_time_ms}
+var current_combo: int = 0
+
+# ── Resume ────────────────────────────────────────────────────────────────────
+var resume_mode: int = -1
+var resume_secret: Array = []
+var resume_history: Array = []
+var resume_campaign_level: int = 0
+
+# ── Puzzle history ────────────────────────────────────────────────────────────
+var puzzle_history: Array = []        # capped at 200
+
+# ── Shop cosmetics ────────────────────────────────────────────────────────────
+var active_sound_pack: String = "default"
+var active_share_emoji: String = "default"
+var active_board_skin: String = "default"
+var unlocked_sound_packs: Array = []
+var unlocked_share_emoji: Array = []
+var unlocked_board_skins: Array = []
+
 # ── Internal ──────────────────────────────────────────────────────────────────
 var _cfg := ConfigFile.new()
 
@@ -158,6 +202,47 @@ func load_data() -> void:
 	guess_distribution_classic = _cfg.get_value("stats", "guess_dist_classic", [0,0,0,0,0,0,0,0,0,0])
 	guess_distribution_easy    = _cfg.get_value("stats", "guess_dist_easy",    [0,0,0,0,0,0,0,0,0,0])
 
+	# Ad system
+	loss_count_since_ad   = _cfg.get_value("progression", "loss_count_since_ad",   0)
+	next_ad_after_losses  = _cfg.get_value("progression", "next_ad_after_losses",  3)
+
+	# Tokens
+	second_chance_tokens  = _cfg.get_value("tokens", "second_chance_tokens",  0)
+	extra_guess_tokens    = _cfg.get_value("tokens", "extra_guess_tokens",     0)
+	streak_freezes        = _cfg.get_value("tokens", "streak_freezes",         0)
+	xp_boost_end_time     = _cfg.get_value("tokens", "xp_boost_end_time",      0)
+
+	# Season
+	season_xp             = _cfg.get_value("season", "season_xp",       0)
+	season_number         = _cfg.get_value("season", "season_number",    1)
+	season_claimed        = _cfg.get_value("season", "season_claimed",   [false,false,false,false,false])
+	season_badge          = _cfg.get_value("season", "season_badge",     "")
+	season_config_cache   = _cfg.get_value("season", "config_cache",     {})
+
+	# Retention
+	consecutive_losses    = _cfg.get_value("retention", "consecutive_losses",   0)
+	last_first_win_date   = _cfg.get_value("retention", "last_first_win_date",  "")
+	weekly_last_week      = _cfg.get_value("retention", "weekly_last_week",     0)
+	personal_bests        = _cfg.get_value("retention", "personal_bests",       {})
+	current_combo         = _cfg.get_value("retention", "current_combo",        0)
+
+	# Resume
+	resume_mode           = _cfg.get_value("resume", "mode",           -1)
+	resume_secret         = _cfg.get_value("resume", "secret",          [])
+	resume_history        = _cfg.get_value("resume", "history",         [])
+	resume_campaign_level = _cfg.get_value("resume", "campaign_level",  0)
+
+	# Puzzle history
+	puzzle_history = _cfg.get_value("history", "puzzle_history", [])
+
+	# Shop cosmetics
+	active_sound_pack     = _cfg.get_value("shop", "active_sound_pack",  "default")
+	active_share_emoji    = _cfg.get_value("shop", "active_share_emoji", "default")
+	active_board_skin     = _cfg.get_value("shop", "active_board_skin",  "default")
+	unlocked_sound_packs  = _cfg.get_value("shop", "unlocked_sound_packs",  [])
+	unlocked_share_emoji  = _cfg.get_value("shop", "unlocked_share_emoji",  [])
+	unlocked_board_skins  = _cfg.get_value("shop", "unlocked_board_skins",  [])
+
 	# One-time migration: pull haptics from old settings.cfg if present
 	if not _cfg.get_value("settings", "haptics_migrated", false):
 		var old_cfg := ConfigFile.new()
@@ -219,6 +304,47 @@ func save() -> void:
 	_cfg.set_value("daily", "best_time_ms",          daily_best_time_ms)
 	_cfg.set_value("stats", "guess_dist_classic",    guess_distribution_classic)
 	_cfg.set_value("stats", "guess_dist_easy",       guess_distribution_easy)
+
+	# Ad system
+	_cfg.set_value("progression", "loss_count_since_ad",  loss_count_since_ad)
+	_cfg.set_value("progression", "next_ad_after_losses", next_ad_after_losses)
+
+	# Tokens
+	_cfg.set_value("tokens", "second_chance_tokens", second_chance_tokens)
+	_cfg.set_value("tokens", "extra_guess_tokens",   extra_guess_tokens)
+	_cfg.set_value("tokens", "streak_freezes",       streak_freezes)
+	_cfg.set_value("tokens", "xp_boost_end_time",    xp_boost_end_time)
+
+	# Season
+	_cfg.set_value("season", "season_xp",      season_xp)
+	_cfg.set_value("season", "season_number",  season_number)
+	_cfg.set_value("season", "season_claimed", season_claimed)
+	_cfg.set_value("season", "season_badge",   season_badge)
+	_cfg.set_value("season", "config_cache",   season_config_cache)
+
+	# Retention
+	_cfg.set_value("retention", "consecutive_losses",  consecutive_losses)
+	_cfg.set_value("retention", "last_first_win_date", last_first_win_date)
+	_cfg.set_value("retention", "weekly_last_week",    weekly_last_week)
+	_cfg.set_value("retention", "personal_bests",      personal_bests)
+	_cfg.set_value("retention", "current_combo",       current_combo)
+
+	# Resume
+	_cfg.set_value("resume", "mode",           resume_mode)
+	_cfg.set_value("resume", "secret",         resume_secret)
+	_cfg.set_value("resume", "history",        resume_history)
+	_cfg.set_value("resume", "campaign_level", resume_campaign_level)
+
+	# Puzzle history
+	_cfg.set_value("history", "puzzle_history", puzzle_history)
+
+	# Shop cosmetics
+	_cfg.set_value("shop", "active_sound_pack",     active_sound_pack)
+	_cfg.set_value("shop", "active_share_emoji",    active_share_emoji)
+	_cfg.set_value("shop", "active_board_skin",     active_board_skin)
+	_cfg.set_value("shop", "unlocked_sound_packs",  unlocked_sound_packs)
+	_cfg.set_value("shop", "unlocked_share_emoji",  unlocked_share_emoji)
+	_cfg.set_value("shop", "unlocked_board_skins",  unlocked_board_skins)
 
 	_cfg.save(SAVE_PATH)
 
@@ -357,6 +483,21 @@ func record_daily(did_win: bool, guesses_used: int, slots: int) -> void:
 	daily_last_date = today
 	if daily_streak > daily_max_streak:
 		daily_max_streak = daily_streak
+	save()
+
+func record_puzzle_history(mode_name: String, guesses: int, won: bool,
+		secret: Array, slots: int, time_ms: int) -> void:
+	puzzle_history.append({
+		"date":   _today_str(),
+		"mode":   mode_name,
+		"guesses": guesses,
+		"won":    won,
+		"secret": secret,
+		"slots":  slots,
+		"time_ms": time_ms
+	})
+	if puzzle_history.size() > 200:
+		puzzle_history.pop_front()
 	save()
 
 # =============================================================================
