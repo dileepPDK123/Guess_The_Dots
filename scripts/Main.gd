@@ -1787,8 +1787,8 @@ func _open_mode_select() -> void:
 		card.gui_input.connect(func(event: InputEvent) -> void:
 			if event is InputEventMouseButton and event.pressed:
 				_close_bottom_sheet(sheet.get_meta("overlay") as Control, sheet)
-				await get_tree().create_timer(0.3).timeout
-				start_new_game(mode_val as GameMode)
+				get_tree().create_timer(0.3).timeout.connect(
+					func() -> void: start_new_game(mode_val as GameMode), CONNECT_ONE_SHOT)
 		)
 		grid.add_child(card)
 
@@ -1816,20 +1816,16 @@ func _open_custom_puzzle_code_sheet() -> void:
 	play_btn.pressed.connect(func() -> void:
 		var code := line_edit.text.strip_edges()
 		_close_bottom_sheet(sheet.get_meta("overlay") as Control, sheet)
-		await get_tree().create_timer(0.3).timeout
-		_open_custom_puzzle_play(code)
+		get_tree().create_timer(0.3).timeout.connect(
+			func() -> void: _open_custom_puzzle_play(code), CONNECT_ONE_SHOT)
 	)
 	vbox.add_child(play_btn)
 
 func _close_mode_select() -> void:
-	var tw := create_tween()
-	tw.tween_property(_mode_select_layer, "modulate:a", 0.0, 0.18)
-	tw.tween_callback(func(): _mode_select_layer.visible = false)
+	pass  # replaced by _close_bottom_sheet
 
 func _on_mode_selected(mode_int: int) -> void:
-	_close_mode_select()
-	await get_tree().create_timer(0.20).timeout
-	start_new_game(mode_int as GameMode)
+	pass  # replaced by mode card gui_input in _open_mode_select
 
 # =============================================================================
 # Stats Screen overlay
