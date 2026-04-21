@@ -1054,10 +1054,9 @@ func _on_submit_pressed() -> void:
 			else:
 				current_guess[index] = -1
 		# Hard mode: add lock badges to exact slots in the submitted row
-		var submitted_past_row_index := _active_row_index
 		for s in range(slots_needed):
 			if _hard_locked_slots.has(s):
-				_add_lock_badge(submitted_past_row_index, s)
+				_add_lock_badge(submitted_row_index, s)
 	else:
 		for index in range(current_guess.size()):
 			current_guess[index] = -1
