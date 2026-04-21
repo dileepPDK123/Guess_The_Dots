@@ -10,6 +10,30 @@ extends Control
 
 enum GameMode { CLASSIC, BLITZ, HARD, ZEN, CAMPAIGN }
 
+class _BlitzRingControl extends Control:
+	var progress: float = 1.0
+	var seconds_left: int = 90
+	var is_critical: bool = false
+
+	func _draw() -> void:
+		var center := size / 2.0
+		var radius := min(size.x, size.y) / 2.0 - 4.0
+		# Background track
+		draw_arc(center, radius, 0.0, TAU, 64, Color(0.8, 0.8, 0.8, 0.3), 5.0, true)
+		# Progress arc (clockwise from top)
+		var arc_color := Color("#EF4444") if is_critical else Color("#F472B6")
+		if progress > 0.0:
+			draw_arc(center, radius, -PI / 2.0, -PI / 2.0 + TAU * progress, 64, arc_color, 5.0, true)
+		# Center text
+		draw_string(ThemeDB.fallback_font, center - Vector2(12, -6), str(seconds_left),
+			HORIZONTAL_ALIGNMENT_CENTER, -1, 14, Color("#6B4E71"))
+
+	func update_progress(time_remaining: float, total_time: float) -> void:
+		progress = clampf(time_remaining / total_time, 0.0, 1.0)
+		seconds_left = int(ceil(time_remaining))
+		is_critical = time_remaining <= 15.0
+		queue_redraw()
+
 const MAX_GUESSES_CLASSIC  := 10
 const MAX_GUESSES_BLITZ    := 999   # effectively unlimited — timer is the constraint
 const MAX_GUESSES_HARD     := 10
@@ -130,20 +154,17 @@ var _tracker_dot_nodes: Array = []
 var _tracker_absent: Dictionary = {}   # color_index → true (confirmed absent via Smart Hint)
 var _tracker_present: Dictionary = {}  # color_index → true (confirmed present via exact match)
 
+# ── Blitz ring ────────────────────────────────────────────────────────────
+var _blitz_ring_node: Control
+
 # =============================================================================
 func _process(delta: float) -> void:
 	if not _blitz_timer_active or not round_active:
 		return
 	_blitz_time_remaining -= delta
-	_blitz_time_remaining  = maxf(_blitz_time_remaining, 0.0)
-	# Update counter label with countdown
-	var secs := int(ceil(_blitz_time_remaining))
-	guess_counter_label.text = "BLITZ  %02d:%02d" % [secs / 60, secs % 60]
-	# Pulse red when under 15 seconds
-	if _blitz_time_remaining <= 15.0:
-		var flash := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.01)
-		guess_counter_label.add_theme_color_override("font_color",
-			Color(1.0, flash * 0.3, flash * 0.3, 1.0))
+	_blitz_time_remaining = maxf(_blitz_time_remaining, 0.0)
+	if _blitz_ring_node != null and is_instance_valid(_blitz_ring_node):
+		(_blitz_ring_node as _BlitzRingControl).update_progress(_blitz_time_remaining, BLITZ_TIME)
 	if _blitz_time_remaining <= 0.0:
 		_blitz_timer_active = false
 		_finish_game(false, "Time's up!")
@@ -359,6 +380,7 @@ func start_new_game(mode: GameMode = GameMode.CLASSIC, campaign_level: int = 1) 
 			slots_needed = 5
 			_populate_sequence(5)
 			_blitz_timer_active = true
+			_build_blitz_ring()
 		GameMode.HARD:
 			MAX_GUESSES  = MAX_GUESSES_HARD
 			slots_needed = rng.randi_range(5, 6)
@@ -390,6 +412,12 @@ func start_new_game(mode: GameMode = GameMode.CLASSIC, campaign_level: int = 1) 
 	_update_palette_selection()
 	_refresh_guess_ui()
 	_update_header_text("TAP A COLOR TO FILL THE NEXT SLOT, OR DRAG IT IN.")
+
+	# Hide blitz ring for non-blitz modes
+	if mode != GameMode.BLITZ:
+		if _blitz_ring_node != null and is_instance_valid(_blitz_ring_node):
+			_blitz_ring_node.queue_free()
+			_blitz_ring_node = null
 
 func _populate_sequence(color_count: int) -> void:
 	for _i in range(slots_needed):
@@ -466,6 +494,15 @@ func _build_palette(count: int = 5) -> void:
 		dot.pressed.connect(_on_palette_dot_pressed.bind(index))
 		palette_container.add_child(dot)
 		palette_buttons.append(dot)
+
+func _build_blitz_ring() -> void:
+	if _blitz_ring_node != null and is_instance_valid(_blitz_ring_node):
+		_blitz_ring_node.queue_free()
+	_blitz_ring_node = _BlitzRingControl.new()
+	_blitz_ring_node.name = "BlitzRing"
+	_blitz_ring_node.custom_minimum_size = Vector2(64, 64)
+	var header := $GameLayer/GameVBox/HeaderPanel as Control
+	header.add_child(_blitz_ring_node)
 
 func _build_elimination_tracker() -> void:
 	if _tracker_container != null and is_instance_valid(_tracker_container):
