@@ -1358,7 +1358,8 @@ func _finish_game(did_win: bool, message: String) -> void:
 		SaveData.save()
 		if SaveData.easy_wins == 3:
 			_show_toast("Ready for Classic? Try it without the hints!")
-	AdManager.on_game_finished()
+	if not did_win:
+		AdManager.on_game_lost()
 
 	# Add share button to result if not already present
 	if not result_layer.has_node("Overlay/PopupCenter/PopupPanel/PopupMargin/PopupVBox/ResultButtons/ShareButton"):
