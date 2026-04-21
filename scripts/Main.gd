@@ -130,6 +130,7 @@ var slots_needed: int = 0
 var round_active: bool = false
 var _second_chance_used: bool = false
 var _xp_doubler_active: bool = false
+var _last_game_won: bool = false
 var current_mode: GameMode = GameMode.CLASSIC
 var _blitz_time_remaining: float = BLITZ_TIME
 var _blitz_timer_active: bool = false
@@ -1183,6 +1184,7 @@ func _finish_game(did_win: bool, message: String) -> void:
 	round_active        = false
 	_blitz_timer_active = false
 	_refresh_guess_ui()
+	_last_game_won = did_win
 
 	if did_win:
 		_vibrate_win()
@@ -1211,6 +1213,17 @@ func _finish_game(did_win: bool, message: String) -> void:
 
 	_check_achievements_after_game(did_win)
 	AdManager.on_game_finished()
+
+	# Add share button to result if not already present
+	if not result_layer.has_node("Overlay/PopupCenter/PopupPanel/PopupMargin/PopupVBox/ResultButtons/ShareButton"):
+		var share_btn := Button.new()
+		share_btn.name = "ShareButton"
+		share_btn.text = "SHARE"
+		share_btn.custom_minimum_size = Vector2(0, 52)
+		share_btn.pressed.connect(_on_share_pressed)
+		var result_buttons := result_layer.get_node("Overlay/PopupCenter/PopupPanel/PopupMargin/PopupVBox/ResultButtons")
+		result_buttons.add_child(share_btn)
+		result_buttons.move_child(share_btn, 0)
 
 	result_layer.visible = true
 	# TODO: update to pastel
@@ -2212,3 +2225,37 @@ func _make_campaign_level_button(lvl: int, stars: int, is_locked: bool) -> Contr
 		)
 
 	return btn
+
+func _show_toast(message: String) -> void:
+	var panel := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color("#6B4E71")
+	sb.corner_radius_top_left     = 12
+	sb.corner_radius_top_right    = 12
+	sb.corner_radius_bottom_left  = 12
+	sb.corner_radius_bottom_right = 12
+	sb.content_margin_left   = 20
+	sb.content_margin_right  = 20
+	sb.content_margin_top    = 12
+	sb.content_margin_bottom = 12
+	panel.add_theme_stylebox_override("panel", sb)
+	var lbl := Label.new()
+	lbl.text = message
+	lbl.add_theme_color_override("font_color", Color.WHITE)
+	panel.add_child(lbl)
+	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+	panel.position.y -= 120
+	add_child(panel)
+	var tw := create_tween()
+	tw.tween_interval(2.0)
+	tw.tween_property(panel, "modulate:a", 0.0, 0.5)
+	tw.finished.connect(panel.queue_free)
+
+func _on_share_pressed() -> void:
+	var mode_name := GameMode.keys()[current_mode].capitalize()
+	var text := DailyChallenge.build_share_text_general(
+		mode_name, guess_history, secret_sequence,
+		_last_game_won, MAX_GUESSES
+	)
+	DisplayServer.clipboard_set(text)
+	_show_toast("Copied to clipboard!")
