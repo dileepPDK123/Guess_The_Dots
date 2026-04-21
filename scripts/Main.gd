@@ -1172,6 +1172,7 @@ func _finish_game(did_win: bool, message: String) -> void:
 	if did_win:
 		_vibrate_win()
 		SoundManager.play("win")
+		_trigger_dot_burst()
 	else:
 		_vibrate_lose()
 		SoundManager.play("lose")
@@ -1234,6 +1235,43 @@ func _finish_game(did_win: bool, message: String) -> void:
 		else:
 			result_play_again_button.text = "RETRY LEVEL"
 		result_menu_button.text = "CAMPAIGN MAP"
+
+func _trigger_dot_burst() -> void:
+	if not has_node("GameLayer/GameVBox/BoardVBox"):
+		return
+	var board_rect := ($GameLayer/GameVBox/BoardVBox as Control).get_global_rect()
+	var board_center := board_rect.get_center()
+	var num_particles := 14
+	var colors: Array = secret_sequence.map(func(ci: int) -> Color: return PALETTE[ci]["color"])
+
+	for i in range(num_particles):
+		var dot_color: Color = colors[i % colors.size()]
+		var size_px := rng.randf_range(8.0, 12.0)
+
+		# Use PanelContainer for rounded circle shape
+		var dot := PanelContainer.new()
+		dot.custom_minimum_size = Vector2(size_px, size_px)
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = dot_color
+		sb.corner_radius_top_left     = 999
+		sb.corner_radius_top_right    = 999
+		sb.corner_radius_bottom_left  = 999
+		sb.corner_radius_bottom_right = 999
+		dot.add_theme_stylebox_override("panel", sb)
+		dot.global_position = board_center
+		add_child(dot)
+
+		var angle := (TAU / num_particles) * i + rng.randf_range(-0.3, 0.3)
+		var dist  := rng.randf_range(200.0, 400.0)
+		var target := board_center + Vector2(cos(angle), sin(angle)) * dist
+		var dur   := rng.randf_range(1.0, 1.4)
+
+		var tw := create_tween()
+		tw.set_parallel(true)
+		tw.tween_property(dot, "global_position", target, dur)\
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw.tween_property(dot, "modulate:a", 0.0, dur).set_ease(Tween.EASE_IN)
+		tw.tween_callback(dot.queue_free).set_delay(dur)
 
 func _reveal_answer_dots() -> void:
 	for child in result_dots_container.get_children():
