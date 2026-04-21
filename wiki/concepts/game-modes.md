@@ -1,13 +1,13 @@
 ---
 title: Game Modes
 type: concept
-status: partially planned (5 new modes)
-spec: docs/superpowers/specs/2026-04-19-ui-rework-design.md § Section 3 + economy spec § Section 4
+status: 6 implemented; 5 planned
+last_updated: 2026-04-20
 ---
 
 # Game Modes
 
-11 modes total after rework. Mode Select shows all as a scrollable grid.
+6 modes currently implemented on `feature/ui-rework`. 5 additional modes planned but not yet coded.
 
 ## Existing Modes (Reworked)
 
