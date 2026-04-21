@@ -360,6 +360,7 @@ func start_new_game(mode: GameMode = GameMode.CLASSIC, campaign_level: int = 1) 
 	menu_layer.visible        = false
 	game_layer.visible        = true
 	result_layer.visible      = false
+	_result_sheet_open        = false
 	hamburger_button.visible  = true
 	hamburger_menu_layer.visible = false
 	AdManager.hide_banner()
@@ -1234,9 +1235,10 @@ func _build_history_row(guess_number: int, item: Dictionary) -> Control:
 var _pending_xp: int     = 0
 var _pending_coins: int  = 0
 var _pending_levels: int = 0
+var _result_sheet_open: bool = false
 
 func _finish_game(did_win: bool, message: String) -> void:
-	if result_layer.visible:
+	if _result_sheet_open:
 		return  # already showing result — prevent double-call
 	round_active        = false
 	_blitz_timer_active = false
@@ -1282,7 +1284,7 @@ func _finish_game(did_win: bool, message: String) -> void:
 		result_buttons.add_child(share_btn)
 		result_buttons.move_child(share_btn, 0)
 
-	result_layer.visible = true
+	_show_result_sheet(did_win, guess_history.size())
 	# TODO: update to pastel
 	#result_message_label.add_theme_color_override("font_color", C_MUTED)
 
@@ -2329,29 +2331,115 @@ func _build_bottom_sheet(title: String) -> Control:
 	sheet.set_anchor_and_offset(SIDE_LEFT,   0.0, 0.0)
 	sheet.set_anchor_and_offset(SIDE_RIGHT,  1.0, 0.0)
 	sheet.set_anchor_and_offset(SIDE_BOTTOM, 1.0, 0.0)
-	sheet.set_anchor_and_offset(SIDE_TOP,    1.0, -420.0)
+	sheet.set_anchor_and_offset(SIDE_TOP,    0.3, 0.0)
+	sheet.position.y = get_viewport_rect().size.y
 	add_child(sheet)
 
 	var vbox := VBoxContainer.new()
 	vbox.name = "Content"
-	vbox.add_theme_constant_override("separation", 12)
+	vbox.add_theme_constant_override("separation", 16)
 	sheet.add_child(vbox)
 
 	var title_lbl := Label.new()
 	title_lbl.text = title
 	title_lbl.add_theme_color_override("font_color", Color("#6B4E71"))
-	title_lbl.add_theme_font_size_override("font_size", 20)
+	title_lbl.add_theme_font_size_override("font_size", 28)
 	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(title_lbl)
 
-	# Close when tapping overlay
+	# Slide-up animation
+	var tw := create_tween()
+	tw.tween_property(sheet, "position:y", 0.0, 0.3).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+
+	# Close on overlay tap
 	overlay.gui_input.connect(func(event: InputEvent) -> void:
 		if event is InputEventMouseButton and event.pressed:
-			sheet.queue_free()
-			overlay.queue_free()
+			_close_bottom_sheet(overlay, sheet)
 	)
 
 	return sheet
+
+func _close_bottom_sheet(overlay: Control, sheet: Control) -> void:
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(sheet, "position:y", get_viewport_rect().size.y, 0.25)
+	tw.tween_property(overlay, "modulate:a", 0.0, 0.25)
+	tw.finished.connect(func() -> void:
+		if is_instance_valid(overlay):
+			overlay.queue_free()
+		if is_instance_valid(sheet):
+			sheet.queue_free()
+	)
+
+func _show_result_sheet(did_win: bool, guesses_used: int) -> void:
+	_result_sheet_open = true
+	var title_text := "You won! 🎉" if did_win else "Better luck next time"
+	var sheet := _build_bottom_sheet(title_text)
+	var vbox := sheet.get_node("Content") as VBoxContainer
+
+	# Title already added by _build_bottom_sheet; update its size
+	var title_lbl := vbox.get_child(0) as Label
+	title_lbl.add_theme_font_size_override("font_size", 32)
+
+	# Secret reveal row — use PanelContainer + StyleBoxFlat for rounded dots
+	var secret_row := HBoxContainer.new()
+	secret_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	secret_row.add_theme_constant_override("separation", 8)
+	for ci in secret_sequence:
+		var dot := PanelContainer.new()
+		dot.custom_minimum_size = Vector2(40, 40)
+		var dot_sb := StyleBoxFlat.new()
+		dot_sb.bg_color = PALETTE[ci]["color"]
+		dot_sb.corner_radius_top_left    = 8
+		dot_sb.corner_radius_top_right   = 8
+		dot_sb.corner_radius_bottom_left  = 8
+		dot_sb.corner_radius_bottom_right = 8
+		dot.add_theme_stylebox_override("panel", dot_sb)
+		secret_row.add_child(dot)
+	vbox.add_child(secret_row)
+
+	# XP + coins label
+	var reward_lbl := Label.new()
+	reward_lbl.text = "+%d XP  +%d coins" % [_pending_xp, _pending_coins]
+	reward_lbl.add_theme_color_override("font_color", Color("#8B6E91"))
+	reward_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(reward_lbl)
+
+	# Share button
+	var share_btn := Button.new()
+	share_btn.text = "Share 🔗"
+	share_btn.custom_minimum_size = Vector2(0, 52)
+	share_btn.pressed.connect(_on_share_pressed)
+	vbox.add_child(share_btn)
+
+	# Play Again + Menu buttons
+	var btn_row := HBoxContainer.new()
+	btn_row.add_theme_constant_override("separation", 12)
+	var play_again := Button.new()
+	play_again.text = "Play Again"
+	play_again.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	play_again.custom_minimum_size = Vector2(0, 52)
+	var menu_btn := Button.new()
+	menu_btn.text = "Menu"
+	menu_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	menu_btn.custom_minimum_size = Vector2(0, 52)
+	btn_row.add_child(play_again)
+	btn_row.add_child(menu_btn)
+	vbox.add_child(btn_row)
+
+	# Get overlay reference (added just before sheet by _build_bottom_sheet)
+	var overlay := sheet.get_parent().get_child(sheet.get_index() - 1) as Control
+
+	play_again.pressed.connect(func() -> void:
+		_result_sheet_open = false
+		_close_bottom_sheet(overlay, sheet)
+		_on_play_again_pressed()
+	)
+	menu_btn.pressed.connect(func() -> void:
+		_result_sheet_open = false
+		_close_bottom_sheet(overlay, sheet)
+		_on_result_menu_pressed()
+	)
 
 func _open_custom_puzzle_create() -> void:
 	var sheet := _build_bottom_sheet("Create a Puzzle")
