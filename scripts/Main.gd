@@ -75,6 +75,9 @@ const PALETTE := [
 const COLORBLIND_SHAPES: Array[String] = ["●", "■", "▲", "◆", "★", "✕"]
 # Index matches PALETTE: Red=0, Blue=1, Green=2, Yellow=3, Purple=4, Orange=5
 
+const CUSTOM_PUZZLE_PREFIX := "GTD-"
+const _CODE_CHARS          := "ABCDEF"  # A=0, B=1, C=2, D=3, E=4, F=5
+
 # ── Scene references ─────────────────────────────────────────────────────────
 @onready var menu_layer: CenterContainer      = $MenuLayer
 @onready var new_game_button: Button          = $MenuLayer/MenuPanel/MenuMargin/MenuVBox/NewGameButton
@@ -512,6 +515,27 @@ func _toggle_colorblind(enabled: bool) -> void:
 		if i < COLORBLIND_SHAPES.size():
 			(palette_buttons[i] as ColorDotButton).apply_colorblind(enabled, COLORBLIND_SHAPES[i])
 	_refresh_board_states()
+
+func _encode_custom_puzzle(sequence: Array[int]) -> String:
+	var code := CUSTOM_PUZZLE_PREFIX
+	for ci in sequence:
+		if ci >= 0 and ci < _CODE_CHARS.length():
+			code += _CODE_CHARS[ci]
+	return code
+
+func _decode_custom_puzzle(code: String) -> Array[int]:
+	if not code.begins_with(CUSTOM_PUZZLE_PREFIX):
+		return []
+	var body := code.substr(CUSTOM_PUZZLE_PREFIX.length())
+	if body.length() < 3 or body.length() > 6:
+		return []
+	var result: Array[int] = []
+	for ch in body:
+		var idx := _CODE_CHARS.find(ch.to_upper())
+		if idx == -1:
+			return []
+		result.append(idx)
+	return result
 
 func _build_blitz_ring() -> void:
 	if _blitz_ring_node != null and is_instance_valid(_blitz_ring_node):
@@ -2250,6 +2274,119 @@ func _show_toast(message: String) -> void:
 	tw.tween_interval(2.0)
 	tw.tween_property(panel, "modulate:a", 0.0, 0.5)
 	tw.finished.connect(panel.queue_free)
+
+func _build_bottom_sheet(title: String) -> Control:
+	var overlay := ColorRect.new()
+	overlay.name = "BottomSheetOverlay"
+	overlay.color = Color(0.0, 0.0, 0.0, 0.5)
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(overlay)
+
+	var sheet := PanelContainer.new()
+	sheet.name = "BottomSheet"
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(1.0, 1.0, 1.0, 0.97)
+	sb.corner_radius_top_left  = 24
+	sb.corner_radius_top_right = 24
+	sb.content_margin_left   = 24
+	sb.content_margin_right  = 24
+	sb.content_margin_top    = 24
+	sb.content_margin_bottom = 24
+	sheet.add_theme_stylebox_override("panel", sb)
+	sheet.set_anchor_and_offset(SIDE_LEFT,   0.0, 0.0)
+	sheet.set_anchor_and_offset(SIDE_RIGHT,  1.0, 0.0)
+	sheet.set_anchor_and_offset(SIDE_BOTTOM, 1.0, 0.0)
+	sheet.set_anchor_and_offset(SIDE_TOP,    1.0, -420.0)
+	add_child(sheet)
+
+	var vbox := VBoxContainer.new()
+	vbox.name = "Content"
+	vbox.add_theme_constant_override("separation", 12)
+	sheet.add_child(vbox)
+
+	var title_lbl := Label.new()
+	title_lbl.text = title
+	title_lbl.add_theme_color_override("font_color", Color("#6B4E71"))
+	title_lbl.add_theme_font_size_override("font_size", 20)
+	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title_lbl)
+
+	# Close when tapping overlay
+	overlay.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.pressed:
+			sheet.queue_free()
+			overlay.queue_free()
+	)
+
+	return sheet
+
+func _open_custom_puzzle_create() -> void:
+	var sheet := _build_bottom_sheet("Create a Puzzle")
+	var vbox := sheet.get_node("Content") as VBoxContainer
+
+	var slot_row := HBoxContainer.new()
+	slot_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	slot_row.add_theme_constant_override("separation", 8)
+	var creator_slots: Array = []
+	var creator_sequence: Array[int] = [-1, -1, -1, -1]
+	var selected_slot_ref := [0]
+
+	for _s in range(4):
+		var slot := SlotButton.new()
+		slot.custom_minimum_size = Vector2(56, 56)
+		slot_row.add_child(slot)
+		creator_slots.append(slot)
+	vbox.add_child(slot_row)
+
+	var palette_row := HBoxContainer.new()
+	palette_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	palette_row.add_theme_constant_override("separation", 8)
+	for ci in range(5):
+		var btn := ColorDotButton.new()
+		btn.color_index = ci
+		btn.dot_color   = PALETTE[ci]["color"]
+		btn.color_name  = str(PALETTE[ci]["name"])
+		var captured_ci := ci
+		btn.pressed.connect(func() -> void:
+			var s := selected_slot_ref[0]
+			if s < 4:
+				creator_sequence[s] = captured_ci
+				(creator_slots[s] as SlotButton).set_filled_visual(PALETTE[captured_ci]["color"], "")
+				selected_slot_ref[0] = min(s + 1, 3)
+		)
+		palette_row.add_child(btn)
+	vbox.add_child(palette_row)
+
+	var generate_btn := Button.new()
+	generate_btn.text = "Copy Code"
+	generate_btn.custom_minimum_size = Vector2(0, 48)
+	generate_btn.pressed.connect(func() -> void:
+		if creator_sequence.has(-1):
+			_show_toast("Fill all 4 slots first")
+			return
+		var code := _encode_custom_puzzle(creator_sequence)
+		DisplayServer.clipboard_set(code)
+		_show_toast("Code copied: %s" % code)
+	)
+	vbox.add_child(generate_btn)
+
+func _open_custom_puzzle_play(code: String) -> void:
+	var sequence := _decode_custom_puzzle(code)
+	if sequence.is_empty():
+		_show_toast("Invalid code — must start with GTD- and use 3-6 letters A-F")
+		return
+	# Start a Classic-style game with this custom sequence
+	start_new_game(GameMode.CLASSIC)
+	# Override secret sequence and slot count after game setup
+	secret_sequence.assign(sequence)
+	slots_needed = sequence.size()
+	SaveData.custom_puzzles_played += 1
+	SaveData.save()
+	# Rebuild board with correct slot count
+	_board_built = false
+	_board_rows.clear()
+	_active_row_index = 0
+	_build_wordle_board()
 
 func _on_share_pressed() -> void:
 	var mode_name := GameMode.keys()[current_mode].capitalize()
