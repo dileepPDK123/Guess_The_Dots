@@ -8,7 +8,7 @@ extends Control
 ##   HARD     — 5-6 slots, 6 colors, 10 guesses; previous "exact" slots are locked
 ##   ZEN      — 4 slots, 5 colors, unlimited guesses, no timer, relaxed
 
-enum GameMode { CLASSIC, BLITZ, HARD, ZEN, CAMPAIGN, EASY, MYSTERY }
+enum GameMode { CLASSIC, BLITZ, HARD, ZEN, CAMPAIGN, EASY, MYSTERY, TIME_TRIAL }
 
 class _BlitzRingControl extends Control:
 	var progress: float = 1.0
@@ -143,6 +143,11 @@ var _current_campaign_level: int = 1
 var _campaign_won: bool = false
 var _hint_ad_pending: bool = false
 var _combo_label: Label = null
+var _time_trial_puzzles_completed: int = 0
+var _time_trial_total_time_ms: int = 0
+var _time_trial_puzzle_times: Array[int] = []
+var _time_trial_start_ms: int = 0
+const TIME_TRIAL_TOTAL_PUZZLES := 5
 
 # ── Overlay layers (built procedurally) ──────────────────────────────────────
 var _mode_select_layer: Control
@@ -423,6 +428,9 @@ func start_new_game(mode: GameMode = GameMode.CLASSIC, campaign_level: int = 1) 
 		GameMode.MYSTERY:
 			_start_mystery_game()
 			return
+		GameMode.TIME_TRIAL:
+			_start_time_trial()
+			return
 
 	_tracker_absent.clear()
 	_tracker_present.clear()
@@ -493,6 +501,31 @@ func _start_mystery_game() -> void:
 	_update_palette_selection()
 	_refresh_guess_ui()
 	_update_header_text("TAP A COLOR TO FILL THE NEXT SLOT, OR DRAG IT IN.")
+
+func _start_time_trial() -> void:
+	current_mode = GameMode.TIME_TRIAL
+	_time_trial_puzzles_completed = 0
+	_time_trial_total_time_ms     = 0
+	_time_trial_puzzle_times.clear()
+	_time_trial_start_ms = Time.get_ticks_msec()
+	await _start_next_time_trial_puzzle()
+
+func _start_next_time_trial_puzzle() -> void:
+	slots_needed = rng.randi_range(3, 4)
+	MAX_GUESSES  = 10
+	secret_sequence = _generate_secret(slots_needed, 5)
+	guess_history.clear()
+	current_guess.clear()
+	_hard_locked_slots.clear()
+	round_active = true
+	_board_built = false
+	_board_rows.clear()
+	if has_node("GameLayer/GameVBox/BoardVBox"):
+		$GameLayer/GameVBox/BoardVBox.queue_free()
+	await get_tree().process_frame
+	_build_wordle_board()
+	_build_elimination_tracker()
+	_show_game_screen()
 
 func _expand_mystery_board() -> void:
 	# Resize current_guess to match new slots_needed
@@ -1407,6 +1440,21 @@ func _finish_game(did_win: bool, message: String) -> void:
 		_vibrate_lose()
 		SoundManager.play("lose")
 
+	# ── Time Trial ──────────────────────────────────────────────────────────────
+	if current_mode == GameMode.TIME_TRIAL:
+		var puzzle_ms := Time.get_ticks_msec() - _time_trial_start_ms
+		_time_trial_puzzle_times.append(puzzle_ms)
+		_time_trial_total_time_ms += puzzle_ms
+		if did_win:
+			_time_trial_puzzles_completed += 1
+		if _time_trial_puzzles_completed >= TIME_TRIAL_TOTAL_PUZZLES or not did_win:
+			_show_time_trial_result()
+		else:
+			_time_trial_start_ms = Time.get_ticks_msec()
+			get_tree().create_timer(1.0).timeout.connect(
+				func() -> void: _start_next_time_trial_puzzle(), CONNECT_ONE_SHOT)
+		return  # Skip normal result sheet
+
 	SaveData.record_game(did_win, guess_history.size())
 
 	# XP / coins calculation — stored as pending so callbacks can reference them
@@ -1905,7 +1953,8 @@ func _open_mode_select() -> void:
 		{"mode": GameMode.HARD,     "name": "Hard",     "desc": "5–6 slots · 6 colors"},
 		{"mode": GameMode.ZEN,      "name": "Zen",      "desc": "Unlimited guesses"},
 		{"mode": GameMode.CAMPAIGN, "name": "Campaign", "desc": "100 levels"},
-		{"mode": GameMode.MYSTERY,  "name": "Mystery",  "desc": "Slots hidden · 12 guesses"},
+		{"mode": GameMode.MYSTERY,    "name": "Mystery",    "desc": "Slots hidden · 12 guesses"},
+		{"mode": GameMode.TIME_TRIAL, "name": "Time Trial", "desc": "5 puzzles · fastest wins"},
 	]
 
 	var grid := GridContainer.new()
@@ -2652,6 +2701,63 @@ func _close_bottom_sheet(overlay: Control, sheet: Control) -> void:
 		if is_instance_valid(sheet):
 			sheet.queue_free()
 	)
+
+func _show_time_trial_result() -> void:
+	var score := _time_trial_puzzles_completed * 1000 - (_time_trial_total_time_ms / 1000)
+	var sheet := _build_bottom_sheet("Time Trial Complete")
+	var vbox := sheet.get_node("Content") as VBoxContainer
+
+	var score_lbl := Label.new()
+	score_lbl.text = "Score: %d" % score
+	score_lbl.add_theme_font_size_override("font_size", 36)
+	score_lbl.add_theme_color_override("font_color", Color("#F472B6"))
+	score_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(score_lbl)
+
+	var solved_lbl := Label.new()
+	solved_lbl.text = "Solved: %d / %d" % [_time_trial_puzzles_completed, TIME_TRIAL_TOTAL_PUZZLES]
+	solved_lbl.add_theme_color_override("font_color", Color("#6B4E71"))
+	solved_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(solved_lbl)
+
+	for i in range(_time_trial_puzzle_times.size()):
+		var t_lbl := Label.new()
+		t_lbl.text = "Puzzle %d: %ds" % [i + 1, _time_trial_puzzle_times[i] / 1000]
+		t_lbl.add_theme_color_override("font_color", Color("#9B7EA6"))
+		vbox.add_child(t_lbl)
+
+	# Personal best check
+	var pb: Dictionary = SaveData.personal_bests.get("TIME_TRIAL", {})
+	if score > pb.get("best_score", -999999):
+		SaveData.personal_bests["TIME_TRIAL"] = {"best_score": score}
+		SaveData.save()
+		var pb_lbl := Label.new()
+		pb_lbl.text = "🏅 New Personal Best!"
+		pb_lbl.add_theme_color_override("font_color", Color("#F472B6"))
+		pb_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		vbox.add_child(pb_lbl)
+
+	# Play Again button
+	var overlay := sheet.get_meta("overlay") as Control
+	var play_again := Button.new()
+	play_again.text = "Play Again"
+	play_again.custom_minimum_size = Vector2(0, 64)
+	play_again.pressed.connect(func():
+		_close_bottom_sheet(overlay, sheet)
+		get_tree().create_timer(0.3).timeout.connect(
+			func(): start_new_game(GameMode.TIME_TRIAL), CONNECT_ONE_SHOT)
+	)
+	vbox.add_child(play_again)
+
+	var menu_btn := Button.new()
+	menu_btn.text = "Menu"
+	menu_btn.custom_minimum_size = Vector2(0, 64)
+	menu_btn.pressed.connect(func():
+		_close_bottom_sheet(overlay, sheet)
+		get_tree().create_timer(0.3).timeout.connect(
+			func(): _show_menu(), CONNECT_ONE_SHOT)
+	)
+	vbox.add_child(menu_btn)
 
 func _show_result_sheet(did_win: bool, guesses_used: int) -> void:
 	_result_sheet_open = true
