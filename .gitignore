@@ -31,3 +31,13 @@ ios/
 # Worktrees
 .worktrees/
 worktrees/
+
+# Internal dev tools — not part of game code
+.claude/
+.raw/
+.superpowers/
+docs/
+memory/
+wiki/
+CLAUDE.md
+plan.md
