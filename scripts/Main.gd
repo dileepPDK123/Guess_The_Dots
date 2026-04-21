@@ -8,7 +8,7 @@ extends Control
 ##   HARD     — 5-6 slots, 6 colors, 10 guesses; previous "exact" slots are locked
 ##   ZEN      — 4 slots, 5 colors, unlimited guesses, no timer, relaxed
 
-enum GameMode { CLASSIC, BLITZ, HARD, ZEN, CAMPAIGN }
+enum GameMode { CLASSIC, BLITZ, HARD, ZEN, CAMPAIGN, EASY }
 
 class _BlitzRingControl extends Control:
 	var progress: float = 1.0
@@ -399,6 +399,10 @@ func start_new_game(mode: GameMode = GameMode.CLASSIC, campaign_level: int = 1) 
 			MAX_GUESSES  = MAX_GUESSES_ZEN
 			slots_needed = 4
 			_populate_sequence(5)
+		GameMode.EASY:
+			MAX_GUESSES  = 10
+			slots_needed = rng.randi_range(3, 4)
+			_populate_sequence(5)
 		GameMode.CAMPAIGN:
 			var cfg := _get_campaign_config(_current_campaign_level)
 			MAX_GUESSES  = cfg["guesses"]
@@ -782,6 +786,32 @@ func _apply_past_row(row: Dictionary, item: Dictionary) -> void:
 		(slots[s] as Control).modulate.a = 1.0
 	_update_pips(row.pips, exact, misplaced)
 
+	# Per-dot rings for Easy mode
+	if current_mode == GameMode.EASY and item.has("per_dot"):
+		var per_dot: Array = item["per_dot"]
+		for s in range(slots.size()):
+			if s < per_dot.size():
+				_apply_dot_ring(slots[s] as Control, per_dot[s])
+
+func _apply_dot_ring(slot: Control, state: String) -> void:
+	var ring_color: Color
+	match state:
+		"exact":     ring_color = C_PIP_EXACT
+		"misplaced": ring_color = C_PIP_MISPLACE
+		_:           return  # no ring for absent
+	var existing := slot.get_theme_stylebox("normal")
+	if existing == null:
+		return
+	var sb := existing.duplicate() as StyleBoxFlat
+	if sb == null:
+		return
+	sb.border_color = ring_color
+	sb.border_width_left   = 3
+	sb.border_width_right  = 3
+	sb.border_width_top    = 3
+	sb.border_width_bottom = 3
+	slot.add_theme_stylebox_override("normal", sb)
+
 func _apply_active_row(row: Dictionary) -> void:
 	var slots: Array = row.slots
 	for s in range(slots.size()):
@@ -1041,6 +1071,7 @@ func _on_submit_pressed() -> void:
 		"values":    guess_copy,
 		"exact":     int(result["exact"]),
 		"misplaced": int(result["misplaced"]),
+		"per_dot":   result["per_dot"],
 	})
 	_vibrate(35)
 	SoundManager.play("submit")
@@ -1108,18 +1139,32 @@ func _on_submit_pressed() -> void:
 # =============================================================================
 func _evaluate_guess(guess: Array[int]) -> Dictionary:
 	var exact := 0
-	var secret_counts := {}
-	var guess_counts  := {}
-	for index in range(secret_sequence.size()):
-		if guess[index] == secret_sequence[index]:
+	var per_dot: Array = []
+	var secret_remaining := secret_sequence.duplicate()
+	var guess_remaining  := guess.duplicate()
+
+	# First pass: exact matches
+	for i in range(guess.size()):
+		if guess[i] == secret_sequence[i]:
 			exact += 1
+			per_dot.append("exact")
+			secret_remaining[i] = -1
+			guess_remaining[i]  = -1
 		else:
-			secret_counts[secret_sequence[index]] = secret_counts.get(secret_sequence[index], 0) + 1
-			guess_counts[guess[index]]             = guess_counts.get(guess[index], 0) + 1
+			per_dot.append("absent")
+
+	# Second pass: misplaced
 	var misplaced := 0
-	for ci in guess_counts.keys():
-		misplaced += min(int(guess_counts[ci]), int(secret_counts.get(ci, 0)))
-	return {"exact": exact, "misplaced": misplaced}
+	for i in range(guess.size()):
+		if guess_remaining[i] == -1:
+			continue
+		var found := secret_remaining.find(guess_remaining[i])
+		if found != -1:
+			misplaced += 1
+			per_dot[i] = "misplaced"
+			secret_remaining[found] = -1
+
+	return {"exact": exact, "misplaced": misplaced, "per_dot": per_dot}
 
 # =============================================================================
 # History
@@ -1309,6 +1354,11 @@ func _finish_game(did_win: bool, message: String) -> void:
 	SaveData.add_coins(_pending_coins)
 
 	_check_achievements_after_game(did_win)
+	if current_mode == GameMode.EASY and did_win:
+		SaveData.easy_wins += 1
+		SaveData.save()
+		if SaveData.easy_wins == 3:
+			_show_toast("Ready for Classic? Try it without the hints!")
 	AdManager.on_game_finished()
 
 	# Add share button to result if not already present
@@ -1756,6 +1806,7 @@ func _open_mode_select() -> void:
 
 	var modes := [
 		{"mode": GameMode.CLASSIC,  "name": "Classic",  "desc": "3–5 slots · 10 guesses"},
+		{"mode": GameMode.EASY,     "name": "Easy",     "desc": "3–4 slots · color hints"},
 		{"mode": GameMode.BLITZ,    "name": "Blitz",    "desc": "5 slots · 90s timer"},
 		{"mode": GameMode.HARD,     "name": "Hard",     "desc": "5–6 slots · 6 colors"},
 		{"mode": GameMode.ZEN,      "name": "Zen",      "desc": "Unlimited guesses"},
