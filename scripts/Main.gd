@@ -224,6 +224,14 @@ func _ready() -> void:
 	menu_vbox.add_child(stats_btn)
 	menu_vbox.move_child(stats_btn, how_to_play_menu_button.get_index() + 1)
 
+	var rewards_btn := Button.new()
+	rewards_btn.text = "REWARDS"
+	rewards_btn.custom_minimum_size = Vector2(0, 74)
+	rewards_btn.add_theme_font_size_override("font_size", 26)
+	rewards_btn.pressed.connect(_open_rewards_screen)
+	menu_vbox.add_child(rewards_btn)
+	menu_vbox.move_child(rewards_btn, stats_btn.get_index() + 1)
+
 	_show_menu()
 	tutorial_layer.start()
 
@@ -1898,6 +1906,138 @@ func _close_mode_select() -> void:
 
 func _on_mode_selected(mode_int: int) -> void:
 	pass  # replaced by mode card gui_input in _open_mode_select
+
+# =============================================================================
+# Rewards Screen (Shop + Season tabs)
+# =============================================================================
+func _open_rewards_screen() -> void:
+	var sheet := _build_bottom_sheet("Rewards")
+	var vbox := sheet.get_node("Content") as VBoxContainer
+
+	# XP balance header
+	var xp_lbl := Label.new()
+	xp_lbl.text = "⚡ %d XP" % SaveData.total_xp_earned
+	xp_lbl.add_theme_color_override("font_color", Color("#F472B6"))
+	xp_lbl.add_theme_font_size_override("font_size", 28)
+	xp_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(xp_lbl)
+
+	# Tab bar
+	var tab_bar := HBoxContainer.new()
+	tab_bar.alignment = BoxContainer.ALIGNMENT_CENTER
+	tab_bar.add_theme_constant_override("separation", 12)
+	var shop_tab_btn := Button.new()
+	shop_tab_btn.text = "⚡ Shop"
+	shop_tab_btn.custom_minimum_size = Vector2(160, 52)
+	var season_tab_btn := Button.new()
+	season_tab_btn.text = "🏅 Season"
+	season_tab_btn.custom_minimum_size = Vector2(160, 52)
+	tab_bar.add_child(shop_tab_btn)
+	tab_bar.add_child(season_tab_btn)
+	vbox.add_child(tab_bar)
+
+	var content_area := ScrollContainer.new()
+	content_area.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	content_area.custom_minimum_size = Vector2(0, 400)
+	var content_vbox := VBoxContainer.new()
+	content_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content_area.add_child(content_vbox)
+	vbox.add_child(content_area)
+
+	# Default: show shop
+	_populate_shop_tab(content_vbox)
+	shop_tab_btn.pressed.connect(func():
+		_clear_children(content_vbox)
+		_populate_shop_tab(content_vbox)
+	)
+	season_tab_btn.pressed.connect(func():
+		_clear_children(content_vbox)
+		_populate_season_tab(content_vbox)
+	)
+
+func _populate_shop_tab(container: VBoxContainer) -> void:
+	for item in ShopManager.CATALOG:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		var name_lbl := Label.new()
+		name_lbl.text = item.name
+		name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		name_lbl.add_theme_color_override("font_color", Color("#6B4E71"))
+		name_lbl.add_theme_font_size_override("font_size", 22)
+		name_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		var cost_str: String
+		if item.cost_type == "xp":
+			cost_str = "%d ⚡" % item.cost
+		else:
+			cost_str = "%d 🪙" % item.cost
+		var buy_btn := Button.new()
+		buy_btn.custom_minimum_size = Vector2(110, 44)
+		if ShopManager.is_owned(item.id):
+			buy_btn.text = "Owned ✓"
+			buy_btn.disabled = true
+		else:
+			buy_btn.text = cost_str
+			var item_id: String = item.id
+			buy_btn.pressed.connect(func():
+				if ShopManager.purchase(item_id):
+					_show_toast("Purchased!")
+					buy_btn.text = "Owned ✓"
+					buy_btn.disabled = true
+				else:
+					_show_toast("Not enough XP")
+			)
+		row.add_child(name_lbl)
+		row.add_child(buy_btn)
+		container.add_child(row)
+
+func _populate_season_tab(container: VBoxContainer) -> void:
+	var season_name_lbl := Label.new()
+	season_name_lbl.text = SeasonManager.get_season_name()
+	season_name_lbl.add_theme_color_override("font_color", Color("#6B4E71"))
+	season_name_lbl.add_theme_font_size_override("font_size", 26)
+	season_name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	container.add_child(season_name_lbl)
+
+	var milestones := SeasonManager.get_milestones()
+	var progress_lbl := Label.new()
+	progress_lbl.text = "Season XP: %d / %d" % [SaveData.season_xp, milestones.back()]
+	progress_lbl.add_theme_color_override("font_color", Color("#9B7EA6"))
+	progress_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	container.add_child(progress_lbl)
+
+	for i in range(milestones.size()):
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		var milestone_lbl := Label.new()
+		milestone_lbl.text = "Milestone %d — %d XP" % [i + 1, milestones[i]]
+		milestone_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		milestone_lbl.add_theme_color_override("font_color", Color("#6B4E71"))
+		milestone_lbl.add_theme_font_size_override("font_size", 22)
+		var claim_btn := Button.new()
+		claim_btn.custom_minimum_size = Vector2(100, 44)
+		if SaveData.season_claimed[i]:
+			claim_btn.text = "✓ Claimed"
+			claim_btn.disabled = true
+		elif SaveData.season_xp >= milestones[i]:
+			claim_btn.text = "Claim!"
+			var idx := i
+			claim_btn.pressed.connect(func():
+				var reward := SeasonManager.claim_milestone(idx)
+				if not reward.is_empty():
+					_show_toast("Reward claimed!")
+					_clear_children(container)
+					_populate_season_tab(container)
+			)
+		else:
+			claim_btn.text = "Locked 🔒"
+			claim_btn.disabled = true
+		row.add_child(milestone_lbl)
+		row.add_child(claim_btn)
+		container.add_child(row)
+
+func _clear_children(node: Node) -> void:
+	for child in node.get_children():
+		child.queue_free()
 
 # =============================================================================
 # Stats Screen overlay
