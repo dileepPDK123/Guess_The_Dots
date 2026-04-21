@@ -1678,105 +1678,7 @@ func _filled_slot_count() -> int:
 # Mode Select overlay
 # =============================================================================
 func _build_mode_select() -> void:
-	_mode_select_layer = Control.new()
-	_mode_select_layer.layout_mode = 1
-	_mode_select_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_mode_select_layer.mouse_filter = Control.MOUSE_FILTER_STOP
-	_mode_select_layer.visible = false
-	add_child(_mode_select_layer)
-
-	var overlay := ColorRect.new()
-	overlay.layout_mode = 1
-	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
-	overlay.color = Color(0.0, 0.0, 0.0, 0.78)
-	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
-	_mode_select_layer.add_child(overlay)
-
-	var center := CenterContainer.new()
-	center.layout_mode = 1
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_mode_select_layer.add_child(center)
-
-	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(720, 0)
-	card.add_theme_stylebox_override("panel", _make_panel_style(C_PANEL))
-	center.add_child(card)
-
-	var cm := MarginContainer.new()
-	cm.layout_mode = 2
-	cm.add_theme_constant_override("margin_left",   36)
-	cm.add_theme_constant_override("margin_right",  36)
-	cm.add_theme_constant_override("margin_top",    36)
-	cm.add_theme_constant_override("margin_bottom", 36)
-	card.add_child(cm)
-
-	var vbox := VBoxContainer.new()
-	vbox.layout_mode = 2
-	vbox.add_theme_constant_override("separation", 16)
-	cm.add_child(vbox)
-
-	var title := Label.new()
-	title.text = "SELECT PROTOCOL"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 38)
-	title.add_theme_color_override("font_color", Color(0.0, 0.9, 1.0, 1.0))
-	vbox.add_child(title)
-
-	vbox.add_child(HSeparator.new())
-
-	var modes := [
-		{
-			"mode":  GameMode.CLASSIC,
-			"name":  "CLASSIC",
-			"sub":   "3–5 NODES  ·  5 COLORS  ·  10 ATTEMPTS",
-			"desc":  "The standard protocol. Random length each round.",
-			"color": Color(0.0, 0.9, 1.0, 1.0),
-			"open_campaign": false,
-		},
-		{
-			"mode":  GameMode.CAMPAIGN,
-			"name":  "CAMPAIGN",
-			"sub":   "100 LEVELS  ·  SCALING DIFFICULTY",
-			"desc":  "Progress through 100 hand-crafted levels. Earn stars.",
-			"color": Color(1.0, 0.84, 0.0, 1.0),
-			"open_campaign": true,
-		},
-		{
-			"mode":  GameMode.BLITZ,
-			"name":  "BLITZ",
-			"sub":   "5 NODES  ·  5 COLORS  ·  90 SECONDS",
-			"desc":  "The clock is your enemy. Decrypt before time expires.",
-			"color": Color(1.0, 0.35, 0.10, 1.0),
-			"open_campaign": false,
-		},
-		{
-			"mode":  GameMode.HARD,
-			"name":  "HARD MODE",
-			"sub":   "5–6 NODES  ·  6 COLORS  ·  LOCKED EXACT SLOTS",
-			"desc":  "Adds Orange as 6th color. Exact slots carry forward locked.",
-			"color": Color(1.0, 0.0, 0.43, 1.0),
-			"open_campaign": false,
-		},
-		{
-			"mode":  GameMode.ZEN,
-			"name":  "ZEN",
-			"sub":   "4 NODES  ·  5 COLORS  ·  UNLIMITED ATTEMPTS",
-			"desc":  "No timer. No attempt limit. Pure decryption.",
-			"color": Color(0.45, 0.88, 0.50, 1.0),
-			"open_campaign": false,
-		},
-	]
-
-	for data in modes:
-		vbox.add_child(_make_mode_card(data, bool(data.get("open_campaign", false))))
-
-	vbox.add_child(HSeparator.new())
-
-	var cancel_btn := Button.new()
-	cancel_btn.text = "CANCEL"
-	cancel_btn.custom_minimum_size = Vector2(0, 64)
-	cancel_btn.pressed.connect(_close_mode_select)
-	vbox.add_child(cancel_btn)
+	pass
 
 func _make_mode_card(data: Dictionary, open_campaign: bool = false) -> Control:
 	var mode_col: Color = data["color"]
@@ -1849,10 +1751,75 @@ func _make_mode_card(data: Dictionary, open_campaign: bool = false) -> Control:
 	return panel
 
 func _open_mode_select() -> void:
-	_mode_select_layer.visible = true
-	_mode_select_layer.modulate.a = 0.0
-	var tw := create_tween()
-	tw.tween_property(_mode_select_layer, "modulate:a", 1.0, 0.20)
+	var sheet := _build_bottom_sheet("Choose Mode")
+	var vbox := sheet.get_node("Content") as VBoxContainer
+
+	var modes := [
+		{"mode": GameMode.CLASSIC,  "name": "Classic",  "desc": "3–5 slots · 10 guesses"},
+		{"mode": GameMode.BLITZ,    "name": "Blitz",    "desc": "5 slots · 90s timer"},
+		{"mode": GameMode.HARD,     "name": "Hard",     "desc": "5–6 slots · 6 colors"},
+		{"mode": GameMode.ZEN,      "name": "Zen",      "desc": "Unlimited guesses"},
+		{"mode": GameMode.CAMPAIGN, "name": "Campaign", "desc": "100 levels"},
+	]
+
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 12)
+	grid.add_theme_constant_override("v_separation", 12)
+
+	for item in modes:
+		var card := PanelContainer.new()
+		_style_panel_glass(card)
+		card.custom_minimum_size = Vector2(0, 80)
+		var card_vbox := VBoxContainer.new()
+		var name_lbl := Label.new()
+		name_lbl.text = item["name"]
+		name_lbl.add_theme_color_override("font_color", C_TEXT_PRIMARY)
+		name_lbl.add_theme_font_size_override("font_size", 20)
+		var desc_lbl := Label.new()
+		desc_lbl.text = item["desc"]
+		desc_lbl.add_theme_color_override("font_color", C_TEXT_SECONDARY)
+		desc_lbl.add_theme_font_size_override("font_size", 14)
+		card_vbox.add_child(name_lbl)
+		card_vbox.add_child(desc_lbl)
+		card.add_child(card_vbox)
+		var mode_val: int = item["mode"]
+		card.gui_input.connect(func(event: InputEvent) -> void:
+			if event is InputEventMouseButton and event.pressed:
+				_close_bottom_sheet(sheet.get_meta("overlay") as Control, sheet)
+				await get_tree().create_timer(0.3).timeout
+				start_new_game(mode_val as GameMode)
+		)
+		grid.add_child(card)
+
+	vbox.add_child(grid)
+
+	# Custom puzzle link
+	var custom_link := Button.new()
+	custom_link.text = "🔗 Play a friend's code"
+	custom_link.add_theme_color_override("font_color", C_TEXT_SECONDARY)
+	custom_link.pressed.connect(_open_custom_puzzle_code_sheet)
+	vbox.add_child(custom_link)
+
+func _open_custom_puzzle_code_sheet() -> void:
+	var sheet := _build_bottom_sheet("Enter Puzzle Code")
+	var vbox := sheet.get_node("Content") as VBoxContainer
+
+	var line_edit := LineEdit.new()
+	line_edit.placeholder_text = "GTD-XXXX"
+	line_edit.custom_minimum_size = Vector2(0, 52)
+	vbox.add_child(line_edit)
+
+	var play_btn := Button.new()
+	play_btn.text = "Play"
+	play_btn.custom_minimum_size = Vector2(0, 52)
+	play_btn.pressed.connect(func() -> void:
+		var code := line_edit.text.strip_edges()
+		_close_bottom_sheet(sheet.get_meta("overlay") as Control, sheet)
+		await get_tree().create_timer(0.3).timeout
+		_open_custom_puzzle_play(code)
+	)
+	vbox.add_child(play_btn)
 
 func _close_mode_select() -> void:
 	var tw := create_tween()
