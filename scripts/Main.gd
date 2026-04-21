@@ -8,7 +8,7 @@ extends Control
 ##   HARD     — 5-6 slots, 6 colors, 10 guesses; previous "exact" slots are locked
 ##   ZEN      — 4 slots, 5 colors, unlimited guesses, no timer, relaxed
 
-enum GameMode { CLASSIC, BLITZ, HARD, ZEN, CAMPAIGN, EASY, MYSTERY, TIME_TRIAL, DUO }
+enum GameMode { CLASSIC, BLITZ, HARD, ZEN, CAMPAIGN, EASY, MYSTERY, TIME_TRIAL, DUO, SUDDEN_DEATH }
 
 class _BlitzRingControl extends Control:
 	var progress: float = 1.0
@@ -441,6 +441,9 @@ func start_new_game(mode: GameMode = GameMode.CLASSIC, campaign_level: int = 1) 
 		GameMode.DUO:
 			_start_duo_game()
 			return
+		GameMode.SUDDEN_DEATH:
+			_start_sudden_death_game()
+			return
 
 	_tracker_absent.clear()
 	_tracker_present.clear()
@@ -511,6 +514,48 @@ func _start_mystery_game() -> void:
 	_update_palette_selection()
 	_refresh_guess_ui()
 	_update_header_text("TAP A COLOR TO FILL THE NEXT SLOT, OR DRAG IT IN.")
+
+func _start_sudden_death_game() -> void:
+	current_mode = GameMode.SUDDEN_DEATH
+	slots_needed  = rng.randi_range(3, 5)
+	MAX_GUESSES   = 10
+	secret_sequence.clear()
+	_populate_sequence(5)
+	guess_history.clear()
+	current_guess.clear()
+	current_guess.resize(slots_needed)
+	for i in range(slots_needed):
+		current_guess[i] = -1
+	_hard_locked_slots.clear()
+	_tracker_absent.clear()
+	_tracker_present.clear()
+	round_active = true
+	_second_chance_used = false
+	_xp_doubler_active = false
+	_blitz_timer_active = false
+	_blitz_time_remaining = BLITZ_TIME
+	_hint_ad_pending = false
+	selected_color_index = -1
+	_board_built = false
+	_board_rows.clear()
+	_active_row_index = 0
+	menu_layer.visible = false
+	game_layer.visible = true
+	result_layer.visible = false
+	_result_sheet_open = false
+	hamburger_button.visible = true
+	hamburger_menu_layer.visible = false
+	AdManager.hide_banner()
+	_build_palette(5)
+	ComboManager.start_round()
+	if has_node("GameLayer/GameVBox/BoardVBox"):
+		$GameLayer/GameVBox/BoardVBox.queue_free()
+	await get_tree().process_frame
+	_build_wordle_board()
+	_build_elimination_tracker()
+	_update_palette_selection()
+	_refresh_guess_ui()
+	_update_header_text("ONE WRONG AND IT'S OVER — EVERY GUESS MUST HAVE AN EXACT.")
 
 func _start_duo_game() -> void:
 	current_mode = GameMode.DUO
@@ -1358,6 +1403,11 @@ func _on_submit_pressed() -> void:
 	elif mis > 0:
 		SoundManager.play("misplace")
 
+	# Sudden Death: zero exact = instant loss
+	if current_mode == GameMode.SUDDEN_DEATH and int(result["exact"]) == 0:
+		_finish_game(false)
+		return
+
 	if int(result["exact"]) == slots_needed:
 		_finish_game(true, "Cracked it! %d guess%s." % [
 			guess_history.size(), "" if guess_history.size() == 1 else "es"
@@ -2148,6 +2198,9 @@ func _open_mode_select() -> void:
 		{"mode": GameMode.MYSTERY,    "name": "Mystery",    "desc": "Slots hidden · 12 guesses"},
 		{"mode": GameMode.TIME_TRIAL, "name": "Time Trial", "desc": "5 puzzles · fastest wins"},
 		{"mode": GameMode.DUO,        "name": "Duo",        "desc": "Two codes · shared guesses"},
+		{"mode": GameMode.SUDDEN_DEATH, "name": "Sudden Death",
+		 "desc": "0 exact = instant loss",
+		 "locked": SaveData.level < 10, "unlock_label": "Unlock at Level 10"},
 	]
 
 	var grid := GridContainer.new()
@@ -2156,28 +2209,35 @@ func _open_mode_select() -> void:
 	grid.add_theme_constant_override("v_separation", 12)
 
 	for item in modes:
+		var is_locked: bool = item.get("locked", false)
 		var card := PanelContainer.new()
 		_style_panel_glass(card)
 		card.custom_minimum_size = Vector2(0, 80)
+		if is_locked:
+			card.modulate = Color(1.0, 1.0, 1.0, 0.45)
 		var card_vbox := VBoxContainer.new()
 		var name_lbl := Label.new()
 		name_lbl.text = item["name"]
 		name_lbl.add_theme_color_override("font_color", C_TEXT_PRIMARY)
 		name_lbl.add_theme_font_size_override("font_size", 20)
 		var desc_lbl := Label.new()
-		desc_lbl.text = item["desc"]
+		if is_locked:
+			desc_lbl.text = item.get("unlock_label", item["desc"])
+		else:
+			desc_lbl.text = item["desc"]
 		desc_lbl.add_theme_color_override("font_color", C_TEXT_SECONDARY)
 		desc_lbl.add_theme_font_size_override("font_size", 14)
 		card_vbox.add_child(name_lbl)
 		card_vbox.add_child(desc_lbl)
 		card.add_child(card_vbox)
-		var mode_val: int = item["mode"]
-		card.gui_input.connect(func(event: InputEvent) -> void:
-			if event is InputEventMouseButton and event.pressed:
-				_close_bottom_sheet(sheet.get_meta("overlay") as Control, sheet)
-				get_tree().create_timer(0.3).timeout.connect(
-					func() -> void: start_new_game(mode_val as GameMode), CONNECT_ONE_SHOT)
-		)
+		if not is_locked:
+			var mode_val: int = item["mode"]
+			card.gui_input.connect(func(event: InputEvent) -> void:
+				if event is InputEventMouseButton and event.pressed:
+					_close_bottom_sheet(sheet.get_meta("overlay") as Control, sheet)
+					get_tree().create_timer(0.3).timeout.connect(
+						func() -> void: start_new_game(mode_val as GameMode), CONNECT_ONE_SHOT)
+			)
 		grid.add_child(card)
 
 	vbox.add_child(grid)
