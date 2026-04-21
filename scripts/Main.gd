@@ -108,6 +108,7 @@ var _hard_locked_slots: Array[int] = []  # slot indices locked from previous exa
 var _current_campaign_level: int = 1
 var _campaign_won: bool = false
 var _hint_used_this_round: bool = false
+var _hint_ad_pending: bool = false
 
 # ── Overlay layers (built procedurally) ──────────────────────────────────────
 var _mode_select_layer: Control
@@ -338,6 +339,7 @@ func start_new_game(mode: GameMode = GameMode.CLASSIC, campaign_level: int = 1) 
 	_blitz_timer_active       = false
 	_blitz_time_remaining     = BLITZ_TIME
 	_hard_locked_slots.clear()
+	_hint_ad_pending          = false
 	selected_color_index      = -1
 	guess_history.clear()
 	secret_sequence.clear()
@@ -834,7 +836,7 @@ func _on_undo_pressed() -> void:
 			return
 
 func _on_hint_pressed() -> void:
-	if not round_active:
+	if not round_active or _hint_ad_pending:
 		return
 
 	# Check if any absent colors remain to reveal
@@ -849,27 +851,30 @@ func _on_hint_pressed() -> void:
 		return
 
 	if AdManager.is_rewarded_ready():
+		_hint_ad_pending = true
 		AdManager.rewarded_earned.connect(_on_hint_rewarded_earned, CONNECT_ONE_SHOT)
 		var shown := AdManager.show_rewarded()
 		if not shown:
 			AdManager.rewarded_earned.disconnect(_on_hint_rewarded_earned)
+			_hint_ad_pending = false
 			status_label.text = "Ad not ready — try again shortly."
 	else:
 		status_label.text = "Hint not available yet — retry shortly."
 
 func _on_hint_rewarded_earned() -> void:
-	_grant_hint()
-	SaveData.hints_used += 1
-	SaveData.ads_watched += 1
-	SaveData.save()
+	_hint_ad_pending = false
+	if _grant_hint():
+		SaveData.hints_used += 1
+		SaveData.ads_watched += 1
+		SaveData.save()
 
-func _grant_hint() -> void:
+func _grant_hint() -> bool:
 	var absent_colors: Array[int] = []
 	for ci in range(PALETTE.size()):
 		if not secret_sequence.has(ci) and not _tracker_absent.has(ci):
 			absent_colors.append(ci)
 	if absent_colors.is_empty():
-		return
+		return false
 	var reveal_idx := absent_colors[rng.randi() % absent_colors.size()]
 	_mark_tracker_absent(reveal_idx)
 	_hint_used_this_round = true
@@ -877,6 +882,7 @@ func _grant_hint() -> void:
 	status_label.text = "%s is not in the sequence." % color_name
 	_vibrate(40)
 	SoundManager.play("hint")
+	return true
 
 func _on_submit_pressed() -> void:
 	if not round_active or not _is_guess_complete():
