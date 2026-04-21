@@ -747,16 +747,45 @@ func _apply_active_row(row: Dictionary) -> void:
 	var slots: Array = row.slots
 	for s in range(slots.size()):
 		(slots[s] as Control).modulate.a = 1.0
-		if s < current_guess.size() and current_guess[s] != -1:
+		if current_mode == GameMode.HARD and _hard_locked_slots.has(s):
+			# Pre-fill with confirmed color (from secret_sequence)
+			var locked_color := PALETTE[secret_sequence[s]]["color"] as Color
+			(slots[s] as SlotButton).set_filled_visual(locked_color, "")
+			(slots[s] as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE
+		elif s < current_guess.size() and current_guess[s] != -1:
 			var color := PALETTE[current_guess[s]]["color"] as Color
 			(slots[s] as SlotButton).set_filled_visual(color, "")
+			(slots[s] as Control).mouse_filter = Control.MOUSE_FILTER_PASS
 		else:
 			(slots[s] as SlotButton).set_empty_visual()
+			(slots[s] as Control).mouse_filter = Control.MOUSE_FILTER_PASS
 
 func _apply_future_row(row: Dictionary) -> void:
 	for slot in row.slots:
 		(slot as SlotButton).set_empty_visual()
 		(slot as Control).modulate.a = 0.2
+
+func _add_lock_badge(row_index: int, slot_index: int) -> void:
+	if row_index >= _board_rows.size():
+		return
+	var slots: Array = _board_rows[row_index].slots
+	if slot_index >= slots.size():
+		return
+	var slot := slots[slot_index] as Control
+	# Don't add duplicate badges
+	if slot.has_node("LockBadge"):
+		return
+	var badge := Label.new()
+	badge.name = "LockBadge"
+	badge.text = "🔒"
+	badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	badge.vertical_alignment   = VERTICAL_ALIGNMENT_BOTTOM
+	badge.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	badge.add_theme_font_size_override("font_size", 10)
+	badge.modulate.a = 0.0
+	slot.add_child(badge)
+	var tw := create_tween()
+	tw.tween_property(badge, "modulate:a", 1.0, 0.2)
 
 func _update_pips(pip_container: HBoxContainer, exact: int, misplaced: int) -> void:
 	var pips := pip_container.get_children()
@@ -1024,6 +1053,11 @@ func _on_submit_pressed() -> void:
 				current_guess[index] = guess_copy[index]  # keep correct slot
 			else:
 				current_guess[index] = -1
+		# Hard mode: add lock badges to exact slots in the submitted row
+		var submitted_past_row_index := _active_row_index
+		for s in range(slots_needed):
+			if _hard_locked_slots.has(s):
+				_add_lock_badge(submitted_past_row_index, s)
 	else:
 		for index in range(current_guess.size()):
 			current_guess[index] = -1
