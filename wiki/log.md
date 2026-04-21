@@ -4,6 +4,13 @@ title: Ingest Log
 
 # Ingest Log
 
+## [2026-04-20] implementation | UI Rework Tasks 1–21
+- Source: `feature/ui-rework` branch (commits e098a6c → cf12cd5)
+- Summary: [[sources/ui-rework-implementation-2026-04-20]]
+- Pages created: [[sources/ui-rework-implementation-2026-04-20]]
+- Pages updated: [[entities/Main]], [[entities/Splash]], [[entities/SaveData]], [[concepts/game-modes]], [[concepts/mastermind-algorithm]], [[hot]], [[index]]
+- Key insight: UI rework fully complete — pastel theme, Wordle board, bottom sheets, Easy mode, all 21 tasks done on `feature/ui-rework`; 5 planned game modes (Mystery/Time Trial/Duo/Sudden Death/Sandbox) still pending.
+
 ## [2026-04-19] spec sync | Backend & Firebase Design
 - Source: `docs/superpowers/specs/2026-04-19-backend-firebase-design.md`
 - Pages created: [[entities/BackendManager]]
