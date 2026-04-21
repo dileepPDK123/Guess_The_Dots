@@ -25,8 +25,10 @@ class _BlitzRingControl extends Control:
 		if progress > 0.0:
 			draw_arc(center, radius, -PI / 2.0, -PI / 2.0 + TAU * progress, 64, arc_color, 5.0, true)
 		# Center text
-		draw_string(ThemeDB.fallback_font, center - Vector2(12, -6), str(seconds_left),
-			HORIZONTAL_ALIGNMENT_CENTER, -1, 14, Color("#6B4E71"))
+		var font := ThemeDB.fallback_font
+		if font != null:
+			draw_string(font, center - Vector2(12, -6), str(seconds_left),
+				HORIZONTAL_ALIGNMENT_CENTER, -1, 14, Color("#6B4E71"))
 
 	func update_progress(time_remaining: float, total_time: float) -> void:
 		progress = clampf(time_remaining / total_time, 0.0, 1.0)
