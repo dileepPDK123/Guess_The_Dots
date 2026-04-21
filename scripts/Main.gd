@@ -772,7 +772,7 @@ func _refresh_board_states() -> void:
 			_apply_future_row(row)
 
 func _apply_past_row(row: Dictionary, item: Dictionary) -> void:
-	# item format: {"values": Array[int], "exact": int, "misplaced": int}
+	# item format: {"values": Array[int], "exact": int, "misplaced": int, "per_dot": Array}
 	var guess: Array = item["values"]
 	var exact: int = int(item["exact"])
 	var misplaced: int = int(item["misplaced"])
