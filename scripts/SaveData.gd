@@ -102,7 +102,7 @@ var xp_boost_end_time: int = 0   # Unix timestamp; 0 = inactive
 # ── Season ────────────────────────────────────────────────────────────────────
 var season_xp: int = 0
 var season_number: int = 1
-var season_claimed: Array = [false, false, false, false, false]
+var season_claimed: Array[bool] = [false, false, false, false, false]
 var season_badge: String = ""
 var season_config_cache: Dictionary = {}
 
@@ -116,7 +116,7 @@ var current_combo: int = 0
 # ── Resume ────────────────────────────────────────────────────────────────────
 var resume_mode: int = -1
 var resume_secret: Array = []
-var resume_history: Array = []
+var resume_history: Array = []        # each entry: Dictionary — {values, exact, misplaced, per_dot}
 var resume_campaign_level: int = 0
 
 # ── Puzzle history ────────────────────────────────────────────────────────────
