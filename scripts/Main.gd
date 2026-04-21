@@ -2375,18 +2375,14 @@ func _open_custom_puzzle_play(code: String) -> void:
 	if sequence.is_empty():
 		_show_toast("Invalid code — must start with GTD- and use 3-6 letters A-F")
 		return
-	# Start a Classic-style game with this custom sequence
-	start_new_game(GameMode.CLASSIC)
-	# Override secret sequence and slot count after game setup
-	secret_sequence.assign(sequence)
+	# Set slot count before game starts so board builds correctly
 	slots_needed = sequence.size()
+	start_new_game(GameMode.CLASSIC)
+	# Override the randomly-generated sequence with the custom one
+	secret_sequence.clear()
+	secret_sequence.assign(sequence)
 	SaveData.custom_puzzles_played += 1
 	SaveData.save()
-	# Rebuild board with correct slot count
-	_board_built = false
-	_board_rows.clear()
-	_active_row_index = 0
-	_build_wordle_board()
 
 func _on_share_pressed() -> void:
 	var mode_name := GameMode.keys()[current_mode].capitalize()
