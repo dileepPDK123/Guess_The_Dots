@@ -67,7 +67,7 @@ func _build_shell() -> void:
 	var bg := ColorRect.new()
 	bg.layout_mode = 1
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg.color        = Color(0.010, 0.018, 0.044, 0.97)
+	bg.color        = Color("#FFF1F9")
 	bg.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(bg)
 
@@ -78,7 +78,13 @@ func _build_shell() -> void:
 
 	var card := PanelContainer.new()
 	card.custom_minimum_size = Vector2(840, 0)
-	card.add_theme_stylebox_override("panel", _ps(Color(0.072, 0.102, 0.172, 0.99), 28))
+	var _card_sb := StyleBoxFlat.new()
+	_card_sb.bg_color = Color(1.0, 1.0, 1.0, 0.97)
+	_card_sb.border_color = Color("#FFD6E7")
+	_card_sb.border_width_left = _card_sb.border_width_right = _card_sb.border_width_top = _card_sb.border_width_bottom = 1
+	_card_sb.corner_radius_top_left = _card_sb.corner_radius_top_right = 24
+	_card_sb.corner_radius_bottom_left = _card_sb.corner_radius_bottom_right = 24
+	card.add_theme_stylebox_override("panel", _card_sb)
 	center.add_child(card)
 
 	var cm := MarginContainer.new()
@@ -101,7 +107,7 @@ func _build_shell() -> void:
 
 	_progress_label = Label.new()
 	_progress_label.add_theme_font_size_override("font_size", 26)
-	_progress_label.add_theme_color_override("font_color", Color(0.54, 0.63, 0.80, 1.0))
+	_progress_label.add_theme_color_override("font_color", Color("#9B7EA6"))
 	_progress_label.custom_minimum_size = Vector2(110, 0)
 	_progress_label.vertical_alignment  = VERTICAL_ALIGNMENT_CENTER
 	prow.add_child(_progress_label)
@@ -111,7 +117,7 @@ func _build_shell() -> void:
 	_progress_track.size_flags_vertical   = Control.SIZE_SHRINK_CENTER
 	_progress_track.custom_minimum_size   = Vector2(0, 7)
 	var ts := StyleBoxFlat.new()
-	ts.bg_color                  = Color(1, 1, 1, 0.10)
+	ts.bg_color                  = Color("#FFD6E7")
 	ts.corner_radius_top_left    = 999
 	ts.corner_radius_top_right   = 999
 	ts.corner_radius_bottom_left = 999
@@ -127,7 +133,7 @@ func _build_shell() -> void:
 	_progress_fill.anchor_bottom  = 1.0
 	_progress_fill.offset_right   = 0.0
 	var fs := StyleBoxFlat.new()
-	fs.bg_color                  = Color(0.26, 0.58, 1.00, 1.0)
+	fs.bg_color                  = Color("#E0B3FF")
 	fs.corner_radius_top_left    = 999
 	fs.corner_radius_top_right   = 999
 	fs.corner_radius_bottom_left = 999
@@ -152,7 +158,7 @@ func _build_shell() -> void:
 	# Separator
 	var sep   := HSeparator.new()
 	var sep_s := StyleBoxFlat.new()
-	sep_s.bg_color = Color(1, 1, 1, 0.09)
+	sep_s.bg_color = Color("#FFD6E7")
 	sep.add_theme_stylebox_override("separator", sep_s)
 	vbox.add_child(sep)
 
@@ -164,9 +170,9 @@ func _build_shell() -> void:
 	_skip_btn = Button.new()
 	_skip_btn.text = "SKIP BRIEFING"
 	_skip_btn.custom_minimum_size = Vector2(220, 76)
-	_bsty(_skip_btn, Color(0.11, 0.15, 0.26, 1.0), Color(1, 1, 1, 0.09))
-	_skip_btn.add_theme_color_override("font_color",       Color(0.66, 0.72, 0.85, 0.82))
-	_skip_btn.add_theme_color_override("font_hover_color", Color(0.80, 0.85, 0.96, 1.00))
+	_bsty(_skip_btn, Color("#F5E6FA"), Color("#FFD6E7"))
+	_skip_btn.add_theme_color_override("font_color",       Color("#9B7EA6"))
+	_skip_btn.add_theme_color_override("font_hover_color", Color("#6B4E71"))
 	_skip_btn.add_theme_font_size_override("font_size", 28)
 	_skip_btn.pressed.connect(_done)
 	brow.add_child(_skip_btn)
@@ -178,8 +184,8 @@ func _build_shell() -> void:
 	_next_btn = Button.new()
 	_next_btn.text = "PROCEED  →"
 	_next_btn.custom_minimum_size = Vector2(270, 76)
-	_bsty(_next_btn, Color(0.18, 0.42, 0.92, 1.0), Color(1, 1, 1, 0.25))
-	_next_btn.add_theme_color_override("font_color",       Color(1.0, 1.0, 1.0, 1.0))
+	_bsty(_next_btn, Color("#E0B3FF"), Color("#FFD6E7"))
+	_next_btn.add_theme_color_override("font_color",       Color("#6B4E71"))
 	_next_btn.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0, 1.0))
 	_next_btn.add_theme_font_size_override("font_size", 30)
 	_next_btn.pressed.connect(_on_next)
@@ -894,7 +900,7 @@ func _ps(color: Color, radius: int = 22) -> StyleBoxFlat:
 	s.border_width_top           = 1
 	s.border_width_right         = 1
 	s.border_width_bottom        = 1
-	s.border_color               = Color(1, 1, 1, 0.07)
+	s.border_color               = Color("#FFD6E7")
 	return s
 
 func _bsty(btn: Button, bg: Color, border: Color) -> void:

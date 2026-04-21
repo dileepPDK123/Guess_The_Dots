@@ -6,6 +6,7 @@ var color_index: int = -1
 var color_name: String = ""
 var dot_color: Color = Color.WHITE
 var is_selected: bool = false
+var _shape_label: Label
 
 func _ready() -> void:
 	focus_mode = Control.FOCUS_NONE
@@ -13,21 +14,33 @@ func _ready() -> void:
 	custom_minimum_size = Vector2(100, 100)
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	tooltip_text = color_name
-	_refresh_style()
+	set_selected(false)
 
-func set_selected(selected: bool) -> void:
-	if is_selected == selected:
-		return
-	is_selected = selected
-	_refresh_style()
-	if selected:
-		var tw := create_tween()
-		tw.tween_property(self, "scale", Vector2(1.08, 1.08), 0.10)\
-			.set_ease(Tween.EASE_OUT)
+func set_selected(is_selected: bool) -> void:
+	var sb := StyleBoxFlat.new()
+	sb.corner_radius_top_left    = 999
+	sb.corner_radius_top_right   = 999
+	sb.corner_radius_bottom_left  = 999
+	sb.corner_radius_bottom_right = 999
+	sb.bg_color = dot_color
+	if is_selected:
+		sb.border_color = Color(dot_color.r, dot_color.g, dot_color.b, 0.4)
+		sb.border_width_left   = 3
+		sb.border_width_right  = 3
+		sb.border_width_top    = 3
+		sb.border_width_bottom = 3
+		scale = Vector2(1.12, 1.12)
 	else:
-		var tw := create_tween()
-		tw.tween_property(self, "scale", Vector2(1.0, 1.0), 0.10)\
-			.set_ease(Tween.EASE_OUT)
+		sb.border_width_left   = 0
+		sb.border_width_right  = 0
+		sb.border_width_top    = 0
+		sb.border_width_bottom = 0
+		scale = Vector2(1.0, 1.0)
+	sb.shadow_color = Color(dot_color.r, dot_color.g, dot_color.b, 0.30)
+	sb.shadow_size  = 8
+	add_theme_stylebox_override("normal",  sb)
+	add_theme_stylebox_override("hover",   sb)
+	add_theme_stylebox_override("pressed", sb)
 
 func _get_drag_data(_at_position: Vector2) -> Variant:
 	var preview := Panel.new()
@@ -39,13 +52,6 @@ func _get_drag_data(_at_position: Vector2) -> Variant:
 		"type": "palette_color",
 		"color_index": color_index,
 	}
-
-func _refresh_style() -> void:
-	add_theme_stylebox_override("normal",   _build_style(dot_color, is_selected, false))
-	add_theme_stylebox_override("hover",    _build_style(dot_color.lightened(0.18), is_selected, false))
-	add_theme_stylebox_override("pressed",  _build_style(dot_color.darkened(0.18), is_selected, false))
-	add_theme_stylebox_override("focus",    _build_style(dot_color, is_selected, false))
-	add_theme_stylebox_override("disabled", _build_style(dot_color.darkened(0.35), false, false))
 
 func _build_style(fill: Color, selected: bool, compact: bool) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
@@ -77,3 +83,16 @@ func _build_style(fill: Color, selected: bool, compact: bool) -> StyleBoxFlat:
 		style.border_width_bottom = 2
 		style.border_color = Color(0, 0, 0, 0.35)
 	return style
+
+func apply_colorblind(enabled: bool, shape_char: String) -> void:
+	if _shape_label == null:
+		_shape_label = Label.new()
+		_shape_label.name = "ShapeLabel"
+		_shape_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_shape_label.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
+		_shape_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		_shape_label.add_theme_color_override("font_color", Color.WHITE)
+		_shape_label.add_theme_font_size_override("font_size", 14)
+		add_child(_shape_label)
+	_shape_label.visible = enabled
+	_shape_label.text    = shape_char if enabled else ""

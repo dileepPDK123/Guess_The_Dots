@@ -70,6 +70,31 @@ func build_share_text(guess_rows: Array, secret: Array[int], did_win: bool, gues
 	result += "\n#NeuralDots"
 	return result
 
+## General share text for any mode.
+## guess_history: Array of {"values": Array[int], "exact": int, "misplaced": int}
+## secret: Array[int] — used for per-dot encoding
+func build_share_text_general(mode_name: String, guess_history: Array,
+		secret: Array[int], did_win: bool, max_guesses: int) -> String:
+	var result_str := "%d/%d" % [guess_history.size(), max_guesses] if did_win else "X/%d" % max_guesses
+	var lines: Array[String] = []
+	lines.append("Guess the Dots · %s · %s" % [mode_name, result_str])
+
+	for item in guess_history:
+		var row_values: Array = item["values"]
+		var line := ""
+		for i in range(row_values.size()):
+			var placed_idx := int(row_values[i])
+			if i < secret.size() and placed_idx == secret[i]:
+				line += "🟢"
+			elif secret.has(placed_idx):
+				line += "🟡"
+			else:
+				line += "⬛"
+		lines.append(line)
+
+	lines.append("#GuessTheDots")
+	return "\n".join(lines)
+
 # =============================================================================
 # Helpers
 # =============================================================================

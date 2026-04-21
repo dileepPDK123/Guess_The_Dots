@@ -1,12 +1,12 @@
 extends Control
 ## Splash.gd — Logo intro animation for Guess the Dots
 
-const C_RED    := Color("#ef4444")
-const C_BLUE   := Color("#3b82f6")
-const C_GREEN  := Color("#22c55e")
-const C_YELLOW := Color("#facc15")
-const C_PURPLE := Color("#a855f7")
-const C_BG     := Color(0.010, 0.018, 0.044, 1.0)
+const C_RED    := Color("#FFB3C1")
+const C_BLUE   := Color("#B3D4FF")
+const C_GREEN  := Color("#B3F5C3")
+const C_YELLOW := Color("#FFF2B3")
+const C_PURPLE := Color("#E0B3FF")
+const C_BG     := Color("#FFF1F9")
 
 const DOT_R := 68.0   # corner dot radius (half-size)
 const DOT_C := 58.0   # center dot radius
@@ -74,7 +74,7 @@ func _build_and_animate() -> void:
 	title_lbl.text                 = "Guess the Dots"
 	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title_lbl.add_theme_font_size_override("font_size", 72)
-	title_lbl.add_theme_color_override("font_color", Color(0.95, 0.97, 1.0, 1.0))
+	title_lbl.add_theme_color_override("font_color", Color("#6B4E71"))
 	title_lbl.layout_mode          = 0
 	var title_y := cy + GAP + DOT_R + 40.0
 	title_lbl.position             = Vector2(0.0, title_y + 50.0)  # starts 50px lower
@@ -87,7 +87,7 @@ func _build_and_animate() -> void:
 	tag_lbl.text                 = "Find the hidden pattern"
 	tag_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	tag_lbl.add_theme_font_size_override("font_size", 36)
-	tag_lbl.add_theme_color_override("font_color", Color(0.60, 0.68, 0.84, 0.85))
+	tag_lbl.add_theme_color_override("font_color", Color("#9B7EA6"))
 	tag_lbl.layout_mode          = 0
 	tag_lbl.position             = Vector2(0.0, title_y + 110.0)
 	tag_lbl.size                 = Vector2(vp.x, 60.0)
@@ -98,7 +98,7 @@ func _build_and_animate() -> void:
 	var fade := ColorRect.new()
 	fade.layout_mode  = 1
 	fade.set_anchors_preset(Control.PRESET_FULL_RECT)
-	fade.color        = Color(0, 0, 0, 1.0)
+	fade.color        = Color("#FFF1F9")
 	fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(fade)
 
@@ -108,7 +108,7 @@ func _build_and_animate() -> void:
 
 	# Phase 1 — fade in from black (0.0 → 0.55s)
 	var tw_in := create_tween()
-	tw_in.tween_property(fade, "modulate:a", 0.0, 0.55)
+	tw_in.tween_property(fade, "modulate:a", 0.0, 0.35)
 
 	# Phase 2 — corner dots fly in (starts 0.4s)
 	for i in range(4):
@@ -117,43 +117,43 @@ func _build_and_animate() -> void:
 		var final: Vector2    = entry["final"]
 
 		var tw_a := create_tween()
-		tw_a.tween_interval(0.40)
-		tw_a.tween_property(dot, "modulate:a", 1.0, 0.15)
+		tw_a.tween_interval(0.25)
+		tw_a.tween_property(dot, "modulate:a", 1.0, 0.25)
 
 		var tw_p := create_tween()
-		tw_p.tween_interval(0.40)
-		tw_p.tween_property(dot, "position", final, 0.60)\
+		tw_p.tween_interval(0.25)
+		tw_p.tween_property(dot, "position", final, 0.40)\
 			.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_ELASTIC)
 
 	# Phase 3 — center dot pops in (1.10s)
 	var tw_ca := create_tween()
-	tw_ca.tween_interval(1.10)
-	tw_ca.tween_property(center_dot, "modulate:a", 1.0, 0.10)
+	tw_ca.tween_interval(0.70)
+	tw_ca.tween_property(center_dot, "modulate:a", 1.0, 0.20)
 
 	var tw_cs := create_tween()
-	tw_cs.tween_interval(1.10)
+	tw_cs.tween_interval(0.70)
 	tw_cs.tween_property(center_dot, "scale", Vector2(1.30, 1.30), 0.18)\
 		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tw_cs.tween_property(center_dot, "scale", Vector2(1.00, 1.00), 0.12)
 
 	# Phase 4 — title slides up (1.35s)
 	var tw_ta := create_tween()
-	tw_ta.tween_interval(1.35)
+	tw_ta.tween_interval(0.90)
 	tw_ta.tween_property(title_lbl, "modulate:a", 1.0, 0.40)
 
 	var tw_tp := create_tween()
-	tw_tp.tween_interval(1.35)
+	tw_tp.tween_interval(0.90)
 	tw_tp.tween_property(title_lbl, "position:y", title_y, 0.40)\
 		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
 
 	# Phase 5 — tagline fades in (1.80s)
 	var tw_tag := create_tween()
-	tw_tag.tween_interval(1.80)
+	tw_tag.tween_interval(1.20)
 	tw_tag.tween_property(tag_lbl, "modulate:a", 1.0, 0.40)
 
 	# Phase 6 — center dot gentle pulse (2.30s)
 	var tw_pulse := create_tween()
-	tw_pulse.tween_interval(2.30)
+	tw_pulse.tween_interval(1.60)
 	tw_pulse.tween_property(center_dot, "scale", Vector2(1.10, 1.10), 0.40)\
 		.set_ease(Tween.EASE_IN_OUT)
 	tw_pulse.tween_property(center_dot, "scale", Vector2(1.00, 1.00), 0.40)\
@@ -161,8 +161,8 @@ func _build_and_animate() -> void:
 
 	# Phase 7 — fade to black and load Main (3.60s)
 	var tw_out := create_tween()
-	tw_out.tween_interval(3.60)
-	tw_out.tween_property(fade, "modulate:a", 1.0, 0.55)
+	tw_out.tween_interval(2.10)
+	tw_out.tween_property(fade, "modulate:a", 1.0, 0.40)
 	tw_out.tween_callback(_go_to_main)
 
 func _go_to_main() -> void:
