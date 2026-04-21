@@ -12,6 +12,7 @@ updated: 2026-04-19
 
 ## Sources
 - [[sources/codebase-snapshot]] — Full codebase ingest (2026-04-19)
+- [[sources/ui-rework-implementation-2026-04-20]] — UI Rework Tasks 1–21 implementation (2026-04-20)
 
 ## Entities (Scripts & Scenes)
 - [[entities/Main]] — Core game controller
