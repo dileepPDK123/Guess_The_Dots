@@ -2310,7 +2310,7 @@ func _show_toast(message: String) -> void:
 	tw.tween_property(panel, "modulate:a", 0.0, 0.5)
 	tw.finished.connect(panel.queue_free)
 
-func _build_bottom_sheet(title: String) -> Control:
+func _build_bottom_sheet(title: String, on_close: Callable = Callable()) -> Control:
 	var overlay := ColorRect.new()
 	overlay.name = "BottomSheetOverlay"
 	overlay.color = Color(0.0, 0.0, 0.0, 0.5)
@@ -2354,9 +2354,12 @@ func _build_bottom_sheet(title: String) -> Control:
 	# Close on overlay tap
 	overlay.gui_input.connect(func(event: InputEvent) -> void:
 		if event is InputEventMouseButton and event.pressed:
+			if on_close.is_valid():
+				on_close.call()
 			_close_bottom_sheet(overlay, sheet)
 	)
 
+	sheet.set_meta("overlay", overlay)
 	return sheet
 
 func _close_bottom_sheet(overlay: Control, sheet: Control) -> void:
@@ -2374,7 +2377,7 @@ func _close_bottom_sheet(overlay: Control, sheet: Control) -> void:
 func _show_result_sheet(did_win: bool, guesses_used: int) -> void:
 	_result_sheet_open = true
 	var title_text := "You won! 🎉" if did_win else "Better luck next time"
-	var sheet := _build_bottom_sheet(title_text)
+	var sheet := _build_bottom_sheet(title_text, func() -> void: _result_sheet_open = false)
 	var vbox := sheet.get_node("Content") as VBoxContainer
 
 	# Title already added by _build_bottom_sheet; update its size
@@ -2427,8 +2430,7 @@ func _show_result_sheet(did_win: bool, guesses_used: int) -> void:
 	btn_row.add_child(menu_btn)
 	vbox.add_child(btn_row)
 
-	# Get overlay reference (added just before sheet by _build_bottom_sheet)
-	var overlay := sheet.get_parent().get_child(sheet.get_index() - 1) as Control
+	var overlay := sheet.get_meta("overlay") as Control
 
 	play_again.pressed.connect(func() -> void:
 		_result_sheet_open = false
