@@ -142,6 +142,7 @@ var _current_campaign_level: int = 1
 var _campaign_won: bool = false
 var _hint_used_this_round: bool = false
 var _hint_ad_pending: bool = false
+var _combo_label: Label = null
 
 # ── Overlay layers (built procedurally) ──────────────────────────────────────
 var _mode_select_layer: Control
@@ -229,6 +230,7 @@ func _ready() -> void:
 
 	# Connect login streak reward signal — fires if today is a new day
 	SaveData.login_streak_updated.connect(_on_login_streak_updated)
+	ComboManager.combo_changed.connect(_on_combo_changed)
 
 # =============================================================================
 # Settings
@@ -374,6 +376,7 @@ func start_new_game(mode: GameMode = GameMode.CLASSIC, campaign_level: int = 1) 
 	selected_color_index      = -1
 	guess_history.clear()
 	secret_sequence.clear()
+	ComboManager.start_round()
 
 	# Rebuild palette for the mode (Hard adds 6th color)
 	_build_palette(6 if mode == GameMode.HARD else 5)
@@ -1015,6 +1018,7 @@ func _on_undo_pressed() -> void:
 func _on_hint_pressed() -> void:
 	if not round_active or _hint_ad_pending:
 		return
+	ComboManager.mark_hint_used()
 
 	# Check if any absent colors remain to reveal
 	var absent_colors: Array[int] = []
@@ -1312,6 +1316,16 @@ func _build_history_row(guess_number: int, item: Dictionary) -> Control:
 
 	return panel
 
+func _base_xp_for_mode() -> int:
+	match current_mode:
+		GameMode.EASY:     return 20
+		GameMode.CLASSIC:  return 30
+		GameMode.BLITZ:    return 40
+		GameMode.HARD:     return 50
+		GameMode.ZEN:      return 20
+		GameMode.CAMPAIGN: return 35
+		_:                 return 30
+
 # =============================================================================
 # Game end
 # =============================================================================
@@ -1339,12 +1353,9 @@ func _finish_game(did_win: bool, message: String) -> void:
 	SaveData.record_game(did_win, guess_history.size())
 
 	# XP / coins calculation — stored as pending so callbacks can reference them
-	_pending_xp = 15
-	if did_win:
-		_pending_xp += 50
-		_pending_xp += (MAX_GUESSES - guess_history.size()) * 10
-		if guess_history.size() <= 3:
-			_pending_xp += 50
+	var multiplier := ComboManager.on_game_finished(did_win, GameMode.keys()[current_mode])
+	var xp_earned  := int(_base_xp_for_mode() * multiplier)
+	_pending_xp = xp_earned
 	if _xp_doubler_active:
 		_pending_xp *= 2
 	_pending_coins = 10 if did_win else 0
@@ -1545,6 +1556,22 @@ func _apply_second_chance(sc_btn: Button, no_btn: Button, offer_lbl: Label) -> v
 	_refresh_guess_ui()
 	_update_palette_selection()
 	_update_header_text("SECOND CHANCE GRANTED — 3 BONUS ATTEMPTS.")
+
+func _on_combo_changed(count: int) -> void:
+	if _combo_label == null or not is_instance_valid(_combo_label):
+		_combo_label = Label.new()
+		_combo_label.name = "ComboLabel"
+		_combo_label.add_theme_color_override("font_color", Color("#F472B6"))
+		_combo_label.add_theme_font_size_override("font_size", 24)
+		$GameLayer/GameVBox/HeaderPanel.add_child(_combo_label)
+	if count >= 2:
+		_combo_label.text = "🔥 %d" % count
+		_combo_label.visible = true
+		var tw := create_tween()
+		tw.tween_property(_combo_label, "scale", Vector2(1.3, 1.3), 0.1)
+		tw.tween_property(_combo_label, "scale", Vector2(1.0, 1.0), 0.1)
+	else:
+		_combo_label.visible = false
 
 # =============================================================================
 # P5 — XP / Coin Doubler
