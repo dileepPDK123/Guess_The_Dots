@@ -122,6 +122,12 @@ var _board_rows: Array = []           # Array of {container, slots, pips, index}
 var _active_row_index: int = 0
 var _board_built: bool = false
 
+# ── Elimination tracker ───────────────────────────────────────────────────────
+var _tracker_container: HBoxContainer
+var _tracker_dot_nodes: Array = []
+var _tracker_absent: Dictionary = {}   # color_index → true (confirmed absent via Smart Hint)
+var _tracker_present: Dictionary = {}  # color_index → true (confirmed present via exact match)
+
 # =============================================================================
 func _process(delta: float) -> void:
 	if not _blitz_timer_active or not round_active:
@@ -365,6 +371,10 @@ func start_new_game(mode: GameMode = GameMode.CLASSIC, campaign_level: int = 1) 
 			_build_palette(cfg["colors"])  # override the pre-match palette call
 			secret_sequence.assign(_campaign_sequence(_current_campaign_level, cfg["slots"], cfg["colors"]))
 
+	_tracker_absent.clear()
+	_tracker_present.clear()
+	_build_elimination_tracker()
+
 	current_guess.clear()
 	current_guess.resize(slots_needed)
 	for i in range(slots_needed):
@@ -452,6 +462,90 @@ func _build_palette(count: int = 5) -> void:
 		dot.pressed.connect(_on_palette_dot_pressed.bind(index))
 		palette_container.add_child(dot)
 		palette_buttons.append(dot)
+
+func _build_elimination_tracker() -> void:
+	if _tracker_container != null and is_instance_valid(_tracker_container):
+		_tracker_container.name = "_TrackerOld"
+		_tracker_container.queue_free()
+
+	_tracker_dot_nodes.clear()
+	_tracker_container = HBoxContainer.new()
+	_tracker_container.name = "EliminationTracker"
+	_tracker_container.alignment = BoxContainer.ALIGNMENT_CENTER
+	_tracker_container.add_theme_constant_override("separation", 10)
+
+	var num_colors := 6 if current_mode == GameMode.HARD else 5
+	for i in range(num_colors):
+		var dot_wrap := Control.new()
+		dot_wrap.custom_minimum_size = Vector2(28, 28)
+
+		# Circle panel
+		var panel := PanelContainer.new()
+		panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = PALETTE[i]["color"]
+		sb.corner_radius_top_left     = 999
+		sb.corner_radius_top_right    = 999
+		sb.corner_radius_bottom_left  = 999
+		sb.corner_radius_bottom_right = 999
+		panel.add_theme_stylebox_override("panel", sb)
+		dot_wrap.add_child(panel)
+
+		var badge := Label.new()
+		badge.name = "Badge"
+		badge.text = ""
+		badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		badge.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
+		badge.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		badge.add_theme_font_size_override("font_size", 14)
+		badge.visible = false
+		dot_wrap.add_child(badge)
+
+		_tracker_container.add_child(dot_wrap)
+		_tracker_dot_nodes.append(dot_wrap)
+
+	# Insert tracker between board and palette
+	var game_vbox := $GameLayer/GameVBox as VBoxContainer
+	# Find palette panel index (palette_container's ancestor inside GameVBox)
+	var target_idx := -1
+	for idx in range(game_vbox.get_child_count()):
+		var child := game_vbox.get_child(idx)
+		if child == palette_container or child.is_ancestor_of(palette_container):
+			target_idx = idx
+			break
+	game_vbox.add_child(_tracker_container)
+	if target_idx >= 0:
+		game_vbox.move_child(_tracker_container, target_idx)
+
+func _update_elimination_tracker() -> void:
+	if _tracker_dot_nodes.is_empty():
+		return
+	for i in range(_tracker_dot_nodes.size()):
+		var wrap: Control = _tracker_dot_nodes[i]
+		if not is_instance_valid(wrap):
+			continue
+		var badge: Label = wrap.get_node("Badge")
+		if _tracker_absent.has(i):
+			wrap.modulate = Color(0.6, 0.6, 0.6, 0.8)
+			badge.text = "✕"
+			badge.add_theme_color_override("font_color", Color.WHITE)
+			badge.visible = true
+		elif _tracker_present.has(i):
+			wrap.modulate = Color(1, 1, 1, 1)
+			badge.text = "✓"
+			badge.add_theme_color_override("font_color", Color.WHITE)
+			badge.visible = true
+		else:
+			wrap.modulate = Color(1, 1, 1, 1)
+			badge.visible = false
+
+func _mark_tracker_absent(color_index: int) -> void:
+	_tracker_absent[color_index] = true
+	_update_elimination_tracker()
+
+func _mark_tracker_present(color_index: int) -> void:
+	_tracker_present[color_index] = true
+	_update_elimination_tracker()
 
 func _build_slots() -> void:
 	for child in slots_container.get_children():
@@ -774,6 +868,12 @@ func _on_submit_pressed() -> void:
 	})
 	_vibrate(35)
 	SoundManager.play("submit")
+
+	# Mark colors confirmed present via exact-match slots
+	var last_vals: Array = guess_history.back()["values"]
+	for s in range(last_vals.size()):
+		if last_vals[s] == secret_sequence[s]:
+			_mark_tracker_present(last_vals[s])
 
 	# Animate the submitted row before advancing state
 	var submitted_row_index := _active_row_index
