@@ -27,6 +27,7 @@ DailyChallenge="*res://scripts/DailyChallenge.gd"
 AchievementManager="*res://scripts/AchievementManager.gd"
 SoundManager="*res://scripts/SoundManager.gd"
 ComboManager="*res://scripts/ComboManager.gd"
+ShopManager="*res://scripts/ShopManager.gd"
 
 [display]
 

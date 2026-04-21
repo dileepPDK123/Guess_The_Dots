@@ -1017,28 +1017,15 @@ func _on_hint_pressed() -> void:
 	if not round_active or _hint_ad_pending:
 		return
 	ComboManager.mark_hint_used()
-
-	# Check if any absent colors remain to reveal
-	var absent_colors: Array[int] = []
-	for ci in range(PALETTE.size()):
-		if not secret_sequence.has(ci) and not _tracker_absent.has(ci):
-			absent_colors.append(ci)
-
-	if absent_colors.is_empty():
-		hint_button.disabled = true
-		status_label.text = "All absent colors already revealed."
+	if ShopManager.consume_hint_token():
+		_grant_hint()  # instant, no ad
 		return
-
+	# Fall through to rewarded ad
 	if AdManager.is_rewarded_ready():
-		_hint_ad_pending = true
 		AdManager.rewarded_earned.connect(_on_hint_rewarded_earned, CONNECT_ONE_SHOT)
-		var shown := AdManager.show_rewarded()
-		if not shown:
-			AdManager.rewarded_earned.disconnect(_on_hint_rewarded_earned)
-			_hint_ad_pending = false
-			status_label.text = "Ad not ready — try again shortly."
+		AdManager.show_rewarded()
 	else:
-		status_label.text = "Hint not available yet — retry shortly."
+		_grant_hint()
 
 func _on_hint_rewarded_earned() -> void:
 	_hint_ad_pending = false
