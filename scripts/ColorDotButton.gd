@@ -6,6 +6,7 @@ var color_index: int = -1
 var color_name: String = ""
 var dot_color: Color = Color.WHITE
 var is_selected: bool = false
+var _shape_label: Label
 
 func _ready() -> void:
 	focus_mode = Control.FOCUS_NONE
@@ -82,3 +83,16 @@ func _build_style(fill: Color, selected: bool, compact: bool) -> StyleBoxFlat:
 		style.border_width_bottom = 2
 		style.border_color = Color(0, 0, 0, 0.35)
 	return style
+
+func apply_colorblind(enabled: bool, shape_char: String) -> void:
+	if _shape_label == null:
+		_shape_label = Label.new()
+		_shape_label.name = "ShapeLabel"
+		_shape_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_shape_label.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
+		_shape_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		_shape_label.add_theme_color_override("font_color", Color.WHITE)
+		_shape_label.add_theme_font_size_override("font_size", 14)
+		add_child(_shape_label)
+	_shape_label.visible = enabled
+	_shape_label.text    = shape_char if enabled else ""

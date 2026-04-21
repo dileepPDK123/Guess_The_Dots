@@ -72,6 +72,9 @@ const PALETTE := [
 	{"name": "Orange", "color": Color("#f97316")},  # Hard mode / Campaign — 6th color
 ]
 
+const COLORBLIND_SHAPES: Array[String] = ["●", "■", "▲", "◆", "★", "✕"]
+# Index matches PALETTE: Red=0, Blue=1, Green=2, Yellow=3, Purple=4, Orange=5
+
 # ── Scene references ─────────────────────────────────────────────────────────
 @onready var menu_layer: CenterContainer      = $MenuLayer
 @onready var new_game_button: Button          = $MenuLayer/MenuPanel/MenuMargin/MenuVBox/NewGameButton
@@ -494,8 +497,17 @@ func _build_palette(count: int = 5) -> void:
 		dot.color_name  = str(PALETTE[index]["name"])
 		dot.dot_color   = PALETTE[index]["color"]
 		dot.pressed.connect(_on_palette_dot_pressed.bind(index))
+		dot.apply_colorblind(SaveData.colorblind_enabled, COLORBLIND_SHAPES[index])
 		palette_container.add_child(dot)
 		palette_buttons.append(dot)
+
+func _toggle_colorblind(enabled: bool) -> void:
+	SaveData.colorblind_enabled = enabled
+	SaveData.save()
+	for i in range(palette_buttons.size()):
+		if i < COLORBLIND_SHAPES.size():
+			(palette_buttons[i] as ColorDotButton).apply_colorblind(enabled, COLORBLIND_SHAPES[i])
+	_refresh_board_states()
 
 func _build_blitz_ring() -> void:
 	if _blitz_ring_node != null and is_instance_valid(_blitz_ring_node):
