@@ -140,7 +140,6 @@ var _blitz_timer_active: bool = false
 var _hard_locked_slots: Array[int] = []  # slot indices locked from previous exact hits
 var _current_campaign_level: int = 1
 var _campaign_won: bool = false
-var _hint_used_this_round: bool = false
 var _hint_ad_pending: bool = false
 var _combo_label: Label = null
 
@@ -415,7 +414,6 @@ func start_new_game(mode: GameMode = GameMode.CLASSIC, campaign_level: int = 1) 
 
 	_tracker_absent.clear()
 	_tracker_present.clear()
-	_hint_used_this_round = false
 	_build_elimination_tracker()
 
 	current_guess.clear()
@@ -1058,7 +1056,6 @@ func _grant_hint() -> bool:
 		return false
 	var reveal_idx := absent_colors[rng.randi() % absent_colors.size()]
 	_mark_tracker_absent(reveal_idx)
-	_hint_used_this_round = true
 	var color_name: String = str(PALETTE[reveal_idx]["name"])
 	status_label.text = "%s is not in the sequence." % color_name
 	_vibrate(40)
@@ -1559,14 +1556,19 @@ func _apply_second_chance(sc_btn: Button, no_btn: Button, offer_lbl: Label) -> v
 
 func _on_combo_changed(count: int) -> void:
 	if _combo_label == null or not is_instance_valid(_combo_label):
-		_combo_label = Label.new()
-		_combo_label.name = "ComboLabel"
-		_combo_label.add_theme_color_override("font_color", Color("#F472B6"))
-		_combo_label.add_theme_font_size_override("font_size", 24)
-		$GameLayer/GameVBox/HeaderPanel.add_child(_combo_label)
+		var existing := $GameLayer/GameVBox/HeaderPanel.find_child("ComboLabel", false, false)
+		if existing != null:
+			_combo_label = existing as Label
+		else:
+			_combo_label = Label.new()
+			_combo_label.name = "ComboLabel"
+			_combo_label.add_theme_color_override("font_color", Color("#F472B6"))
+			_combo_label.add_theme_font_size_override("font_size", 24)
+			$GameLayer/GameVBox/HeaderPanel.add_child(_combo_label)
 	if count >= 2:
 		_combo_label.text = "🔥 %d" % count
 		_combo_label.visible = true
+		_combo_label.pivot_offset = _combo_label.get_minimum_size() / 2.0
 		var tw := create_tween()
 		tw.tween_property(_combo_label, "scale", Vector2(1.3, 1.3), 0.1)
 		tw.tween_property(_combo_label, "scale", Vector2(1.0, 1.0), 0.1)
