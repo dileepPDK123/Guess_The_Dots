@@ -485,21 +485,6 @@ func record_daily(did_win: bool, guesses_used: int, slots: int) -> void:
 		daily_max_streak = daily_streak
 	save()
 
-func record_puzzle_history(mode_name: String, guesses: int, won: bool,
-		secret: Array, slots: int, time_ms: int) -> void:
-	puzzle_history.append({
-		"date":   _today_str(),
-		"mode":   mode_name,
-		"guesses": guesses,
-		"won":    won,
-		"secret": secret,
-		"slots":  slots,
-		"time_ms": time_ms
-	})
-	if puzzle_history.size() > 200:
-		puzzle_history.pop_front()
-	save()
-
 # =============================================================================
 # Login streak
 # =============================================================================
@@ -596,3 +581,19 @@ func _today_str() -> String:
 func _date_offset(days: int) -> String:
 	var unix := Time.get_unix_time_from_system() + days * 86400
 	return Time.get_date_string_from_unix_time(int(unix))
+
+# ── Puzzle history ──────────────────────────────────────────────────────────
+func record_puzzle_history(mode_name: String, guesses: int, won: bool,
+		secret: Array, slots: int, time_ms: int) -> void:
+	puzzle_history.append({
+		"date":   _today_str(),
+		"mode":   mode_name,
+		"guesses": guesses,
+		"won":    won,
+		"secret": secret,
+		"slots":  slots,
+		"time_ms": time_ms
+	})
+	if puzzle_history.size() > 200:
+		puzzle_history.pop_front()
+	save()
