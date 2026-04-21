@@ -524,7 +524,9 @@ func _update_elimination_tracker() -> void:
 		var wrap: Control = _tracker_dot_nodes[i]
 		if not is_instance_valid(wrap):
 			continue
-		var badge: Label = wrap.get_node("Badge")
+		var badge: Label = wrap.get_node_or_null("Badge")
+		if badge == null:
+			continue
 		if _tracker_absent.has(i):
 			wrap.modulate = Color(0.6, 0.6, 0.6, 0.8)
 			badge.text = "✕"
