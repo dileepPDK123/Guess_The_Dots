@@ -2,9 +2,10 @@
 title: Main.gd
 type: script
 path: scripts/Main.gd
-lines: 1834 (will grow significantly after rework)
+lines: ~2600 (post ui-rework)
 extends: Control
-spec: docs/superpowers/specs/2026-04-19-ui-rework-design.md + economy spec
+branch: feature/ui-rework
+last_updated: 2026-04-20
 ---
 
 # Main.gd
