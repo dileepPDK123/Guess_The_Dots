@@ -8,7 +8,7 @@ extends Control
 ##   HARD     — 5-6 slots, 6 colors, 10 guesses; previous "exact" slots are locked
 ##   ZEN      — 4 slots, 5 colors, unlimited guesses, no timer, relaxed
 
-enum GameMode { CLASSIC, BLITZ, HARD, ZEN, CAMPAIGN, EASY }
+enum GameMode { CLASSIC, BLITZ, HARD, ZEN, CAMPAIGN, EASY, MYSTERY }
 
 class _BlitzRingControl extends Control:
 	var progress: float = 1.0
@@ -138,6 +138,7 @@ var current_mode: GameMode = GameMode.CLASSIC
 var _blitz_time_remaining: float = BLITZ_TIME
 var _blitz_timer_active: bool = false
 var _hard_locked_slots: Array[int] = []  # slot indices locked from previous exact hits
+var _mystery_true_slots: int = 0
 var _current_campaign_level: int = 1
 var _campaign_won: bool = false
 var _hint_ad_pending: bool = false
@@ -419,6 +420,9 @@ func start_new_game(mode: GameMode = GameMode.CLASSIC, campaign_level: int = 1) 
 			slots_needed = cfg["slots"]
 			_build_palette(cfg["colors"])  # override the pre-match palette call
 			secret_sequence.assign(_campaign_sequence(_current_campaign_level, cfg["slots"], cfg["colors"]))
+		GameMode.MYSTERY:
+			_start_mystery_game()
+			return
 
 	_tracker_absent.clear()
 	_tracker_present.clear()
@@ -445,6 +449,60 @@ func start_new_game(mode: GameMode = GameMode.CLASSIC, campaign_level: int = 1) 
 func _populate_sequence(color_count: int) -> void:
 	for _i in range(slots_needed):
 		secret_sequence.append(rng.randi_range(0, color_count - 1))
+
+func _start_mystery_game() -> void:
+	current_mode = GameMode.MYSTERY
+	var true_slots := rng.randi_range(3, 5)
+	_mystery_true_slots = true_slots
+	slots_needed  = 1  # Start showing only 1 slot
+	MAX_GUESSES   = 12
+	secret_sequence.clear()
+	for _i in range(true_slots):
+		secret_sequence.append(rng.randi_range(0, 4))
+	guess_history.clear()
+	current_guess.clear()
+	current_guess.resize(slots_needed)
+	current_guess[0] = -1
+	_hard_locked_slots.clear()
+	_tracker_absent.clear()
+	_tracker_present.clear()
+	round_active = true
+	_second_chance_used = false
+	_xp_doubler_active = false
+	_blitz_timer_active = false
+	_blitz_time_remaining = BLITZ_TIME
+	_hint_ad_pending = false
+	selected_color_index = -1
+	_board_built = false
+	_board_rows.clear()
+	_active_row_index = 0
+	menu_layer.visible = false
+	game_layer.visible = true
+	result_layer.visible = false
+	_result_sheet_open = false
+	hamburger_button.visible = true
+	hamburger_menu_layer.visible = false
+	AdManager.hide_banner()
+	_build_palette(5)
+	ComboManager.start_round()
+	if has_node("GameLayer/GameVBox/BoardVBox"):
+		$GameLayer/GameVBox/BoardVBox.queue_free()
+	await get_tree().process_frame
+	_build_elimination_tracker()
+	_build_wordle_board()
+	_update_palette_selection()
+	_refresh_guess_ui()
+	_update_header_text("TAP A COLOR TO FILL THE NEXT SLOT, OR DRAG IT IN.")
+
+func _expand_mystery_board() -> void:
+	# Resize current_guess to match new slots_needed
+	current_guess.resize(slots_needed)
+	current_guess[slots_needed - 1] = -1
+	_board_rows.clear()
+	await get_tree().process_frame
+	_build_wordle_board()
+	_update_palette_selection()
+	_refresh_guess_ui()
 
 func _return_to_menu() -> void:
 	_show_menu()
@@ -1126,6 +1184,13 @@ func _on_submit_pressed() -> void:
 	else:
 		for index in range(current_guess.size()):
 			current_guess[index] = -1
+
+	# Mystery mode: reveal one more slot per guess
+	if current_mode == GameMode.MYSTERY and slots_needed < _mystery_true_slots:
+		slots_needed += 1
+		_expand_mystery_board()
+		return
+
 	_refresh_guess_ui()
 	_update_palette_selection()
 	_update_header_text("LOCKED: %d  ·  MISALIGNED: %d" % [int(result["exact"]), int(result["misplaced"])])
@@ -1840,6 +1905,7 @@ func _open_mode_select() -> void:
 		{"mode": GameMode.HARD,     "name": "Hard",     "desc": "5–6 slots · 6 colors"},
 		{"mode": GameMode.ZEN,      "name": "Zen",      "desc": "Unlimited guesses"},
 		{"mode": GameMode.CAMPAIGN, "name": "Campaign", "desc": "100 levels"},
+		{"mode": GameMode.MYSTERY,  "name": "Mystery",  "desc": "Slots hidden · 12 guesses"},
 	]
 
 	var grid := GridContainer.new()
