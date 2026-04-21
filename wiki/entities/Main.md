@@ -27,8 +27,22 @@ enum GameMode { CLASSIC, BLITZ, HARD, ZEN, CAMPAIGN, EASY }
 | `current_mode` | `GameMode` | Active mode |
 | `round_active` | `bool` | Guessing allowed |
 | `haptics_enabled` | `bool` | Vibration |
-| `_comeback_active` | `bool` | Silent difficulty reduction |
-| `_hint_used_this_round` | `bool` | Breaks combo if true |
+| `_board_rows` | `Array` | Dicts `{container, slots, pips, index}` |
+| `_active_row_index` | `int` | Current guess row |
+| `_board_built` | `bool` | Guard for board rebuild |
+| `_result_sheet_open` | `bool` | Double-call guard for `_finish_game` |
+| `_pending_xp` | `int` | XP staged for result display |
+| `_pending_coins` | `int` | Coins staged for result display |
+| `_hint_used_this_round` | `bool` | Prevents double hint per round |
+| `_hard_locked_slots` | `Array` | Exact slot indices locked in Hard mode |
+| `_tracker_absent` | `Dictionary` | Colors confirmed absent (tracker) |
+| `_tracker_present` | `Dictionary` | Colors confirmed present (tracker) |
+
+## History Entry Format (Canonical)
+```gdscript
+{"values": Array[int], "exact": int, "misplaced": int, "per_dot": Array}
+# per_dot entries: "exact" | "misplaced" | "absent"
+```
 
 ## Visual System (Reworked)
 - Theme: Soft Pastel — see [[concepts/pastel-theme]]
