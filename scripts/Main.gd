@@ -107,6 +107,7 @@ var _blitz_timer_active: bool = false
 var _hard_locked_slots: Array[int] = []  # slot indices locked from previous exact hits
 var _current_campaign_level: int = 1
 var _campaign_won: bool = false
+var _hint_used_this_round: bool = false
 
 # ── Overlay layers (built procedurally) ──────────────────────────────────────
 var _mode_select_layer: Control
@@ -373,6 +374,7 @@ func start_new_game(mode: GameMode = GameMode.CLASSIC, campaign_level: int = 1) 
 
 	_tracker_absent.clear()
 	_tracker_present.clear()
+	_hint_used_this_round = false
 	_build_elimination_tracker()
 
 	current_guess.clear()
@@ -834,28 +836,47 @@ func _on_undo_pressed() -> void:
 func _on_hint_pressed() -> void:
 	if not round_active:
 		return
-	if not AdManager.is_rewarded_ready():
-		status_label.text = "HINT NOT AVAILABLE YET — RETRY SHORTLY."
-		return
-	AdManager.rewarded_earned.connect(_apply_hint, CONNECT_ONE_SHOT)
-	var shown := AdManager.show_rewarded()
-	if not shown:
-		AdManager.rewarded_earned.disconnect(_apply_hint)
-		status_label.text = "AD NOT READY — RETRY SHORTLY."
 
-func _apply_hint() -> void:
+	# Check if any absent colors remain to reveal
+	var absent_colors: Array[int] = []
+	for ci in range(PALETTE.size()):
+		if not secret_sequence.has(ci) and not _tracker_absent.has(ci):
+			absent_colors.append(ci)
+
+	if absent_colors.is_empty():
+		hint_button.disabled = true
+		status_label.text = "All absent colors already revealed."
+		return
+
+	if AdManager.is_rewarded_ready():
+		AdManager.rewarded_earned.connect(_on_hint_rewarded_earned, CONNECT_ONE_SHOT)
+		var shown := AdManager.show_rewarded()
+		if not shown:
+			AdManager.rewarded_earned.disconnect(_on_hint_rewarded_earned)
+			status_label.text = "Ad not ready — try again shortly."
+	else:
+		status_label.text = "Hint not available yet — retry shortly."
+
+func _on_hint_rewarded_earned() -> void:
+	_grant_hint()
 	SaveData.hints_used += 1
 	SaveData.ads_watched += 1
 	SaveData.save()
-	for i in range(slots_needed):
-		if current_guess[i] != secret_sequence[i]:
-			current_guess[i] = secret_sequence[i]
-			_refresh_guess_ui()
-			_update_palette_selection()
-			status_label.text = "HINT COMPLETE — NODE %d REVEALED." % (i + 1)
-			_vibrate(40)
-			return
-	status_label.text = "ALL NODES ALREADY CORRECT."
+
+func _grant_hint() -> void:
+	var absent_colors: Array[int] = []
+	for ci in range(PALETTE.size()):
+		if not secret_sequence.has(ci) and not _tracker_absent.has(ci):
+			absent_colors.append(ci)
+	if absent_colors.is_empty():
+		return
+	var reveal_idx := absent_colors[rng.randi() % absent_colors.size()]
+	_mark_tracker_absent(reveal_idx)
+	_hint_used_this_round = true
+	var color_name: String = str(PALETTE[reveal_idx]["name"])
+	status_label.text = "%s is not in the sequence." % color_name
+	_vibrate(40)
+	SoundManager.play("hint")
 
 func _on_submit_pressed() -> void:
 	if not round_active or not _is_guess_complete():
