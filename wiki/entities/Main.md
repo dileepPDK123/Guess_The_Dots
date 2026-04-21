@@ -12,13 +12,11 @@ last_updated: 2026-04-20
 
 Core game controller. Manages all game state, UI rendering, game modes, and orchestrates all systems.
 
-## Game Mode Enum (Updated)
+## Game Mode Enum (Implemented — 2026-04-20)
 ```gdscript
-enum GameMode {
-    CLASSIC, EASY, BLITZ, HARD, ZEN, CAMPAIGN,
-    MYSTERY, TIME_TRIAL, DUO, SUDDEN_DEATH, SANDBOX
-}
+enum GameMode { CLASSIC, BLITZ, HARD, ZEN, CAMPAIGN, EASY }
 ```
+> [!note] Planned but not yet implemented: MYSTERY, TIME_TRIAL, DUO, SUDDEN_DEATH, SANDBOX
 
 ## Key State Variables
 | Variable | Type | Purpose |
