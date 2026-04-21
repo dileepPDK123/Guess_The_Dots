@@ -76,24 +76,17 @@ enum GameMode { CLASSIC, BLITZ, HARD, ZEN, CAMPAIGN, EASY }
 - **Resume prompt** — shown on launch if `SaveData.resume_secret` non-empty
 - **Comeback mechanic** — silently adjusts difficulty after 3 losses
 
-## Overlay / Screen Methods (Updated)
-- `_build_mode_select()` — 2×3 grid + Weekly Challenge card + Custom Puzzle link
-- `_build_stats_screen()` — Stats + Deep Dive section + Archive button
-- `_build_rewards_screen()` — Shop tab + Season tab
-- `_build_campaign_screen()` — unchanged logic, pastel restyle
-- `_build_hamburger_menu()` — replaced by `⋯` bottom sheet with Color-Blind toggle
+## Bottom Sheet System (Implemented)
+- `_build_bottom_sheet(title, on_close: Callable = Callable()) -> Control` — slide-up from bottom, overlay tap calls `on_close` then `_close_bottom_sheet`
+- `_close_bottom_sheet(overlay, sheet)` — parallel 0.25s slide+fade, `tw.finished.connect` for `queue_free`
+- Overlay stored as `sheet.set_meta("overlay", overlay)` — retrieve with `sheet.get_meta("overlay")`
 
-## Result Screen (New)
-- Full bottom sheet (not popup)
-- Contains: result title, secret reveal, XP/coins, dot burst, share button, combo display
-- XP doubler offer shown here
-
-## New Mode Dispatch
-- Mystery: `_start_mystery_mode()`
-- Time Trial: `_start_time_trial()`
-- Duo: `_start_duo_mode()`
-- Sudden Death: `_start_sudden_death()`
-- Sandbox: `_start_sandbox()`
+## Sheet-Based Screens (Implemented)
+- `_show_result_sheet(did_win, guesses_used)` — replaces old `result_layer` popup
+- `_open_settings_sheet()` — `⋯` button; New Round + Main Menu + How to Play + toggles
+- `_open_mode_select()` — 2-column card grid (CLASSIC, BLITZ, HARD, ZEN, CAMPAIGN, EASY)
+- `_open_custom_puzzle_create()` — build a puzzle
+- `_open_custom_puzzle_code_sheet()` — enter GTD-XXXX code
 
 ## Related
 - [[entities/ComboManager]] — combo tracking
