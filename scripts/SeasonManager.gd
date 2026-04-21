@@ -51,7 +51,10 @@ func _on_config_fetched(result: int, response_code: int, _headers: PackedStringA
 	var json := JSON.new()
 	if json.parse(body.get_string_from_utf8()) != OK:
 		return
-	var data: Dictionary = json.get_data()
+	var parsed = json.get_data()
+	if not parsed is Dictionary:
+		return
+	var data: Dictionary = parsed
 	if not data.has("active_season"):
 		return
 	# Check if season number changed — reset season_xp if so
