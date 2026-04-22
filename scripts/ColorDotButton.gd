@@ -21,7 +21,7 @@ func _ready() -> void:
 	set_selected(false)
 
 func _gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
 			drag_started.emit(dot_color, event.global_position)
 		else:
