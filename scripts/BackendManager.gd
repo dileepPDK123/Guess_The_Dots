@@ -319,3 +319,49 @@ func push_save() -> void:
 		# Push failed — mark for retry on next launch
 		SaveData.pending_cloud_push = true
 		SaveData.save()
+
+## Submit daily challenge score. Only submits if result is an improvement.
+func submit_daily_score(guesses_used: int, time_ms: int, solved: bool) -> void:
+	if SaveData.firebase_uid.is_empty() or SaveData.firebase_id_token.is_empty():
+		return
+	await _ensure_token_fresh()
+	var date := Time.get_date_string_from_system()
+	var score_url := "%s/leaderboards/%s/scores/%s" % [_fs_url, date, SaveData.firebase_uid]
+
+	# Fetch existing score for today
+	var existing := await _get_json(score_url, SaveData.firebase_id_token)
+	var existing_data: Dictionary = {}
+	if not existing.is_empty():
+		existing_data = _firestore_fields_to_dict(existing)
+
+	# Determine if this is an improvement
+	var should_submit := false
+	if existing_data.is_empty():
+		should_submit = true
+	elif not solved:
+		should_submit = false  # Don't overwrite a solved entry with a loss
+	else:
+		var ex_guesses: int = existing_data.get("guesses_used", 9999)
+		var ex_time:    int = existing_data.get("time_ms",      9999999)
+		if guesses_used < ex_guesses:
+			should_submit = true
+		elif guesses_used == ex_guesses and time_ms < ex_time:
+			should_submit = true
+
+	if not should_submit:
+		return
+
+	var display_name := SaveData.firebase_display_name
+	if display_name.is_empty():
+		display_name = "Player " + SaveData.firebase_uid.right(4).to_upper()
+
+	var doc := {
+		"fields": {
+			"guesses_used": {"integerValue": str(guesses_used)},
+			"time_ms":      {"integerValue": str(time_ms)},
+			"display_name": {"stringValue":  display_name},
+			"solved":       {"booleanValue": solved},
+			"submitted_at": {"integerValue": str(int(Time.get_unix_time_from_system()))}
+		}
+	}
+	await _put_json(score_url, JSON.stringify(doc), SaveData.firebase_id_token)

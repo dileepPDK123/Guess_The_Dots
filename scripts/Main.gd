@@ -170,6 +170,9 @@ var _sandbox_creator_sequence: Array[int] = []
 # ── Weekly Challenge ──────────────────────────────────────────────────────────
 var _weekly_week_num: int = 0
 
+# ── Daily Challenge ───────────────────────────────────────────────────────────
+var _playing_daily: bool = false
+
 # ── Duo mode ──────────────────────────────────────────────────────────────────
 var _duo_secret_b: Array[int] = []
 var _duo_history_b: Array = []
@@ -2013,6 +2016,10 @@ func _finish_game(did_win: bool, message: String = "") -> void:
 	)
 	BackendManager.push_save()  # async fire-and-forget
 
+	if _is_daily_challenge():
+		var elapsed := _game_elapsed_ms()
+		BackendManager.submit_daily_score(guess_history.size(), elapsed, did_win)
+
 	_show_result_sheet(did_win, guess_history.size())
 	# TODO: update to pastel
 	#result_message_label.add_theme_color_override("font_color", C_MUTED)
@@ -3370,6 +3377,9 @@ func _close_bottom_sheet(overlay: Control, sheet: Control) -> void:
 # =============================================================================
 func _game_elapsed_ms() -> int:
 	return Time.get_ticks_msec() - _game_start_ms
+
+func _is_daily_challenge() -> bool:
+	return _playing_daily
 
 # =============================================================================
 # Resume Game
