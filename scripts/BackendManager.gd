@@ -19,6 +19,7 @@ var _api_key: String = ""
 var _project_id: String = ""
 var _fs_url: String = ""
 var _initialized: bool = false
+var _refresh_timer: Timer = null
 
 func _ready() -> void:
 	_api_key    = ProjectSettings.get_setting("Firebase/api_key",    "")
@@ -63,15 +64,9 @@ func _sign_in_anonymous() -> void:
 	SaveData.save()
 	auth_completed.emit(SaveData.firebase_uid)
 
-## Refresh the token using the stored refresh token.
-func _ensure_token_fresh() -> void:
-	var now := int(Time.get_unix_time_from_system())
-	if now < SaveData.firebase_token_expiry - 300:
-		return
-	await _refresh_token()
-
 ## Exchange refresh token for a new id token.
-func _refresh_token() -> void:
+## Public — also called by timer and lazily before writes.
+func refresh_token() -> void:
 	var url  := "https://securetoken.googleapis.com/v1/token?key=%s" % _api_key
 	var body := JSON.stringify({
 		"grant_type": "refresh_token",
@@ -87,12 +82,20 @@ func _refresh_token() -> void:
 
 ## Start a timer that refreshes the token every 55 minutes.
 func _start_refresh_timer() -> void:
-	var timer := Timer.new()
-	add_child(timer)
-	timer.wait_time = 3300.0
-	timer.autostart = true
-	timer.timeout.connect(_refresh_token)
-	timer.start()
+	if _refresh_timer != null and is_instance_valid(_refresh_timer):
+		_refresh_timer.queue_free()
+	_refresh_timer = Timer.new()
+	_refresh_timer.wait_time = 55.0 * 60.0  # 55 minutes
+	_refresh_timer.one_shot  = false
+	_refresh_timer.timeout.connect(refresh_token)
+	add_child(_refresh_timer)
+	_refresh_timer.start()
+
+## Ensure the token is fresh before a write. Refreshes if expiring within 60 seconds.
+func _ensure_token_fresh() -> void:
+	var now := int(Time.get_unix_time_from_system())
+	if now > SaveData.firebase_token_expiry - 60:
+		await refresh_token()
 
 ## POST request returning parsed JSON dict. Returns {} on failure.
 func _post_json(url: String, body: String, extra_headers: PackedStringArray = PackedStringArray()) -> Dictionary:
