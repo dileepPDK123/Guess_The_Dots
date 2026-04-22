@@ -516,7 +516,7 @@ func _populate_sequence(color_count: int) -> void:
 		secret_sequence.append(rng.randi_range(0, color_count - 1))
 
 func _start_weekly_challenge() -> void:
-	var week_num: int = Time.get_datetime_dict_from_system().get("week", 1)
+	var week_num: int = (Time.get_unix_time_from_system() / 604800) as int
 	if SaveData.weekly_last_week == week_num:
 		_show_toast("Already completed this week's challenge!")
 		return
@@ -524,6 +524,12 @@ func _start_weekly_challenge() -> void:
 	slots_needed  = 5
 	MAX_GUESSES   = 8
 	_weekly_week_num = week_num
+	_game_start_ms = Time.get_ticks_msec()
+	_is_new_pb = false
+	_used_reactions.clear()
+	_second_chance_used = false
+	ComboManager.start_round()
+	_active_row_index = 0
 	# Seed from week number for consistent puzzle
 	rng.seed = week_num * 1337 + 42
 	secret_sequence = []
@@ -531,6 +537,8 @@ func _start_weekly_challenge() -> void:
 	rng.randomize()  # Restore random state
 	guess_history.clear()
 	current_guess.clear()
+	current_guess.resize(slots_needed)
+	current_guess.fill(-1)
 	_hard_locked_slots.clear()
 	round_active = true
 	_board_built = false
@@ -1992,6 +2000,15 @@ func _finish_game(did_win: bool, message: String = "") -> void:
 		result_buttons.add_child(share_btn)
 		result_buttons.move_child(share_btn, 0)
 
+	SaveData.record_puzzle_history(
+		GameMode.keys()[current_mode],
+		guess_history.size(),
+		did_win,
+		secret_sequence.duplicate(),
+		slots_needed,
+		_game_elapsed_ms()
+	)
+
 	_show_result_sheet(did_win, guess_history.size())
 	# TODO: update to pastel
 	#result_message_label.add_theme_color_override("font_color", C_MUTED)
@@ -2501,7 +2518,7 @@ func _open_mode_select() -> void:
 	vbox.add_child(grid)
 
 	# Weekly Challenge special card
-	var week_num_display: int = Time.get_datetime_dict_from_system().get("week", 1)
+	var week_num_display: int = (Time.get_unix_time_from_system() / 604800) as int
 	var weekly_done: bool = SaveData.weekly_last_week == week_num_display
 	var weekly_panel := PanelContainer.new()
 	_style_panel_glass(weekly_panel)
