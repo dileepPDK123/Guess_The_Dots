@@ -29,6 +29,7 @@ SoundManager="*res://scripts/SoundManager.gd"
 ComboManager="*res://scripts/ComboManager.gd"
 ShopManager="*res://scripts/ShopManager.gd"
 SeasonManager="*res://scripts/SeasonManager.gd"
+BackendManager="*res://scripts/BackendManager.gd"
 
 [display]
 
