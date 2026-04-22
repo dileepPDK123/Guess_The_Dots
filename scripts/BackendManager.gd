@@ -596,10 +596,22 @@ func delete_account() -> void:
 	# Step 3: Delete Firebase Auth user
 	var auth_url := "%s/accounts:delete?key=%s" % [AUTH_URL, _api_key]
 	var body     := JSON.stringify({"idToken": token})
-	await _post_json(auth_url, body)
+	var auth_result := await _post_json_any(auth_url, body)
+	if auth_result.has("error"):
+		account_delete_failed.emit(auth_result.get("error", {}).get("message", "Auth deletion failed"))
+		return
 
 	# Step 4: Wipe local save file
 	DirAccess.remove_absolute("user://save_data.cfg")
+
+	# Clear Firebase fields from memory so re-init starts fresh
+	SaveData.firebase_uid           = ""
+	SaveData.firebase_id_token      = ""
+	SaveData.firebase_refresh_token = ""
+	SaveData.firebase_token_expiry  = 0
+	SaveData.firebase_linked        = false
+	SaveData.firebase_display_name  = ""
+	SaveData.firebase_apple_name    = ""
 
 	# Step 5: Emit signal — Main.gd will restart to clean state
 	account_deleted.emit()
