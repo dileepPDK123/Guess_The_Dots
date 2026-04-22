@@ -207,9 +207,94 @@ func _put_json(url: String, body: String, id_token: String) -> Dictionary:
 		return {}
 	return data
 
-## Stub methods to be filled in by later tasks
+## Convert SaveData to a Firestore fields dict for PATCH body.
+func _save_to_firestore_fields() -> Dictionary:
+	var fields := {}
+	var int_fields := {
+		"xp": SaveData.xp, "level": SaveData.level, "coins": SaveData.coins,
+		"total_xp_earned": SaveData.total_xp_earned, "games_played": SaveData.games_played,
+		"games_won": SaveData.games_won, "current_win_streak": SaveData.current_win_streak,
+		"max_win_streak": SaveData.max_win_streak, "daily_streak": SaveData.daily_streak,
+		"daily_max_streak": SaveData.daily_max_streak, "login_streak": SaveData.login_streak,
+		"campaign_max_unlocked": SaveData.campaign_max_unlocked,
+		"updated_at": int(Time.get_unix_time_from_system())
+	}
+	for k in int_fields:
+		fields[k] = {"integerValue": str(int_fields[k])}
+
+	var bool_fields := {"ads_removed": SaveData.ads_removed}
+	for k in bool_fields:
+		fields[k] = {"booleanValue": bool_fields[k]}
+
+	var arr_fields := {
+		"unlocked_themes": SaveData.unlocked_themes,
+		"unlocked_shapes": SaveData.unlocked_shapes,
+	}
+	for k in arr_fields:
+		var arr_vals: Array = []
+		for v in arr_fields[k]:
+			arr_vals.append({"stringValue": str(v)})
+		fields[k] = {"arrayValue": {"values": arr_vals}}
+
+	return {"fields": fields}
+
+## Parse a Firestore document's fields dict back to a plain Dictionary.
+func _firestore_fields_to_dict(doc: Dictionary) -> Dictionary:
+	var result: Dictionary = {}
+	var fields: Dictionary = doc.get("fields", {})
+	for k in fields:
+		var v: Dictionary = fields[k]
+		if v.has("integerValue"):
+			result[k] = int(v["integerValue"])
+		elif v.has("booleanValue"):
+			result[k] = bool(v["booleanValue"])
+		elif v.has("stringValue"):
+			result[k] = str(v["stringValue"])
+		elif v.has("arrayValue"):
+			var arr: Array = []
+			for item in v["arrayValue"].get("values", []):
+				if item.has("stringValue"):
+					arr.append(str(item["stringValue"]))
+				elif item.has("integerValue"):
+					arr.append(int(item["integerValue"]))
+			result[k] = arr
+	return result
+
+## Apply cloud save dictionary to local SaveData fields.
+func _apply_cloud_to_local(cloud: Dictionary) -> void:
+	if cloud.has("xp"):                    SaveData.xp                    = cloud["xp"]
+	if cloud.has("level"):                 SaveData.level                 = cloud["level"]
+	if cloud.has("coins"):                 SaveData.coins                 = cloud["coins"]
+	if cloud.has("total_xp_earned"):       SaveData.total_xp_earned       = cloud["total_xp_earned"]
+	if cloud.has("games_played"):          SaveData.games_played          = cloud["games_played"]
+	if cloud.has("games_won"):             SaveData.games_won             = cloud["games_won"]
+	if cloud.has("current_win_streak"):    SaveData.current_win_streak    = cloud["current_win_streak"]
+	if cloud.has("max_win_streak"):        SaveData.max_win_streak        = cloud["max_win_streak"]
+	if cloud.has("daily_streak"):          SaveData.daily_streak          = cloud["daily_streak"]
+	if cloud.has("daily_max_streak"):      SaveData.daily_max_streak      = cloud["daily_max_streak"]
+	if cloud.has("login_streak"):          SaveData.login_streak          = cloud["login_streak"]
+	if cloud.has("campaign_max_unlocked"): SaveData.campaign_max_unlocked = cloud["campaign_max_unlocked"]
+	if cloud.has("unlocked_themes"):       SaveData.unlocked_themes       = cloud["unlocked_themes"]
+	if cloud.has("unlocked_shapes"):       SaveData.unlocked_shapes       = cloud["unlocked_shapes"]
+	if cloud.has("ads_removed"):           SaveData.ads_removed           = cloud["ads_removed"]
+
+## Fetch cloud save and apply if cloud has higher total_xp_earned.
 func pull_save() -> void:
-	pass
+	if SaveData.firebase_uid.is_empty() or SaveData.firebase_id_token.is_empty():
+		return
+	var url := "%s/users/%s/save" % [_fs_url, SaveData.firebase_uid]
+	var doc := await _get_json(url, SaveData.firebase_id_token)
+	if doc.is_empty():
+		# New player or no cloud doc — push local save up
+		await push_save()
+		return
+	var cloud := _firestore_fields_to_dict(doc)
+	if cloud.get("total_xp_earned", 0) > SaveData.total_xp_earned:
+		_apply_cloud_to_local(cloud)
+		SaveData.save()
+		cloud_save_pulled.emit()
+	else:
+		await push_save()
 
 func push_save() -> void:
 	pass

@@ -280,6 +280,9 @@ func _ready() -> void:
 	# Connect login streak reward signal — fires if today is a new day
 	SaveData.login_streak_updated.connect(_on_login_streak_updated)
 	ComboManager.combo_changed.connect(_on_combo_changed)
+	BackendManager.cloud_save_pulled.connect(func():
+		_show_toast("Progress restored ✓")
+	)
 
 # =============================================================================
 # Settings
