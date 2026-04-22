@@ -73,7 +73,10 @@ func _ensure_token_fresh() -> void:
 ## Exchange refresh token for a new id token.
 func _refresh_token() -> void:
 	var url  := "https://securetoken.googleapis.com/v1/token?key=%s" % _api_key
-	var body := '{"grant_type":"refresh_token","refresh_token":"%s"}' % SaveData.firebase_refresh_token
+	var body := JSON.stringify({
+		"grant_type": "refresh_token",
+		"refresh_token": SaveData.firebase_refresh_token
+	})
 	var result := await _post_json(url, body)
 	if result.is_empty():
 		return
@@ -145,7 +148,10 @@ func _delete_request(url: String, id_token: String) -> bool:
 		"Content-Type: application/json",
 		"Authorization: Bearer " + id_token
 	])
-	http.request(url, headers, HTTPClient.METHOD_DELETE)
+	var err := http.request(url, headers, HTTPClient.METHOD_DELETE)
+	if err != OK:
+		http.queue_free()
+		return false
 	var response := await http.request_completed
 	http.queue_free()
 	return response[1] in [200, 204]
@@ -158,7 +164,10 @@ func _patch_json(url: String, body: String, id_token: String) -> Dictionary:
 		"Content-Type: application/json",
 		"Authorization: Bearer " + id_token
 	])
-	http.request(url, headers, HTTPClient.METHOD_PATCH, body)
+	var err := http.request(url, headers, HTTPClient.METHOD_PATCH, body)
+	if err != OK:
+		http.queue_free()
+		return {}
 	var response := await http.request_completed
 	http.queue_free()
 	if response[0] != HTTPRequest.RESULT_SUCCESS or response[1] not in [200, 201]:
@@ -179,7 +188,10 @@ func _put_json(url: String, body: String, id_token: String) -> Dictionary:
 		"Content-Type: application/json",
 		"Authorization: Bearer " + id_token
 	])
-	http.request(url, headers, HTTPClient.METHOD_PUT, body)
+	var err := http.request(url, headers, HTTPClient.METHOD_PUT, body)
+	if err != OK:
+		http.queue_free()
+		return {}
 	var response := await http.request_completed
 	http.queue_free()
 	if response[0] != HTTPRequest.RESULT_SUCCESS or response[1] not in [200, 201]:
