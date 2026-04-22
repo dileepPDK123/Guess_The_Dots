@@ -149,10 +149,19 @@ var _time_trial_puzzle_times: Array[int] = []
 var _time_trial_start_ms: int = 0
 const TIME_TRIAL_TOTAL_PUZZLES := 5
 
+const REACTION_MESSAGES: Dictionary = {
+	"cold_start": ["Cold start — keep going", "No hits yet, adjust your approach"],
+	"cold_late":  ["Still searching… think differently", "Zero exact — time to rethink"],
+	"one_exact":  ["One locked in!", "Warm — 1 confirmed"],
+	"one_away":   ["So close — one slot away!", "One more to crack it!"],
+	"last_chance": ["Last chance!", "Final attempt — make it count"],
+}
+
 # ── Retention mechanics ───────────────────────────────────────────────────────
 var _comeback_active: bool = false
 var _is_new_pb: bool = false
 var _game_start_ms: int = 0
+var _used_reactions: Array[String] = []
 
 # ── Sandbox mode ──────────────────────────────────────────────────────────────
 var _sandbox_setting_phase: bool = false
@@ -418,6 +427,7 @@ func start_new_game(mode: GameMode = GameMode.CLASSIC, campaign_level: int = 1) 
 	selected_color_index      = -1
 	guess_history.clear()
 	secret_sequence.clear()
+	_used_reactions.clear()
 	ComboManager.start_round()
 
 	# Rebuild palette for the mode (Hard adds 6th color)
@@ -1557,6 +1567,14 @@ func _on_submit_pressed() -> void:
 	_update_palette_selection()
 	_update_header_text("LOCKED: %d  ·  MISALIGNED: %d" % [int(result["exact"]), int(result["misplaced"])])
 
+	# Reaction message: show tiered feedback in status_label for continuing rounds
+	var _fb := guess_history.back()
+	var _exact_count: int = _fb.get("exact", 0)
+	var remaining := MAX_GUESSES - guess_history.size()
+	var reaction := _get_reaction_message(_exact_count, remaining)
+	if not reaction.is_empty():
+		status_label.text = reaction
+
 	# Auto-save resume state after each submit (only resumable modes)
 	if round_active and current_mode not in [GameMode.SANDBOX, GameMode.TIME_TRIAL, GameMode.DUO]:
 		SaveData.resume_mode    = current_mode
@@ -1568,6 +1586,31 @@ func _on_submit_pressed() -> void:
 # =============================================================================
 # Core algorithm
 # =============================================================================
+func _get_reaction_message(exact: int, guesses_remaining: int) -> String:
+	var pool_key := ""
+	if exact == 0 and guess_history.size() == 1:
+		pool_key = "cold_start"
+	elif exact == 0 and guess_history.size() >= 4:
+		pool_key = "cold_late"
+	elif exact == 1:
+		pool_key = "one_exact"
+	elif exact == slots_needed - 1:
+		pool_key = "one_away"
+	elif guesses_remaining == 1:
+		pool_key = "last_chance"
+	if pool_key.is_empty():
+		return ""
+	var pool: Array = REACTION_MESSAGES[pool_key]
+	var candidates := pool.filter(func(m): return not _used_reactions.has(m))
+	if candidates.is_empty():
+		candidates = pool
+		_used_reactions.clear()
+	var msg: String = candidates[rng.randi() % candidates.size()]
+	_used_reactions.append(msg)
+	if _used_reactions.size() > 4:
+		_used_reactions.pop_front()
+	return msg
+
 func _evaluate_guess(guess: Array[int]) -> Dictionary:
 	var exact := 0
 	var per_dot: Array = []
