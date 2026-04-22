@@ -3594,7 +3594,7 @@ func _show_result_sheet(did_win: bool, guesses_used: int) -> void:
 		# Find player's rank in top 100
 		var player_rank := -1
 		for i in range(top_entries.size()):
-			if top_entries[i]["display_name"] == SaveData.firebase_display_name:
+			if top_entries[i].get("uid", "") == SaveData.firebase_uid:
 				player_rank = i + 1
 				break
 

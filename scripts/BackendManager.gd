@@ -416,8 +416,12 @@ func fetch_leaderboard(date: String) -> Array:
 		var doc: Dictionary = item.get("document", {})
 		if doc.is_empty():
 			continue
+		var name_path: String = doc.get("name", "")
+		var parts := name_path.split("/")
+		var entry_uid: String = parts[-1] if parts.size() > 0 else ""
 		var fields := _firestore_fields_to_dict(doc)
 		entries.append({
+			"uid":          entry_uid,
 			"display_name": fields.get("display_name", "?"),
 			"guesses_used": fields.get("guesses_used", 0),
 			"time_ms":      fields.get("time_ms", 0)
