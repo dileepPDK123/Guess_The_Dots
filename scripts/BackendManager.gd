@@ -121,6 +121,30 @@ func _post_json(url: String, body: String, extra_headers: PackedStringArray = Pa
 		return {}
 	return data
 
+## POST request returning parsed JSON body for ANY HTTP status (including errors).
+## Use when the error response body contains useful information (e.g. Firebase error codes).
+## Returns {} only on network failure or parse error.
+func _post_json_any(url: String, body: String, headers: PackedStringArray = []) -> Dictionary:
+	var http := HTTPRequest.new()
+	add_child(http)
+	var all_headers := PackedStringArray(["Content-Type: application/json"])
+	all_headers.append_array(headers)
+	var err := http.request(url, all_headers, HTTPClient.METHOD_POST, body)
+	if err != OK:
+		http.queue_free()
+		return {}
+	var response := await http.request_completed
+	http.queue_free()
+	if response[0] != HTTPRequest.RESULT_SUCCESS:
+		return {}
+	var json := JSON.new()
+	if json.parse(response[3].get_string_from_utf8()) != OK:
+		return {}
+	var data = json.get_data()
+	if not data is Dictionary:
+		return {}
+	return data
+
 ## GET request returning parsed JSON dict.
 func _get_json(url: String, id_token: String = "") -> Dictionary:
 	var http := HTTPRequest.new()
@@ -477,7 +501,7 @@ func link_google(google_token: String) -> void:
 		"returnIdpCredential": true,
 		"idToken": SaveData.firebase_id_token
 	})
-	var result := await _post_json(url, body)
+	var result := await _post_json_any(url, body)
 	if result.is_empty() or result.has("error"):
 		account_link_failed.emit(result.get("error", {}).get("message", "Link failed"))
 		return
@@ -495,19 +519,19 @@ func link_google(google_token: String) -> void:
 
 ## Trigger the Google Sign-In flow (Android only). Calls link_google() with the token.
 func start_google_sign_in() -> void:
-	if not ClassDB.class_exists("GoogleSignIn"):
+	if not Engine.has_singleton("GoogleSignIn"):
 		account_link_failed.emit("Google Sign-In plugin not available")
 		return
-	var gsi := ClassDB.instantiate("GoogleSignIn")
+	var gsi = Engine.get_singleton("GoogleSignIn")
 	var token: String = await gsi.get_google_id_token()
 	if token.is_empty():
 		account_link_failed.emit("Sign-in cancelled")
 		return
 	await link_google(token)
 
-	## Trigger the Sign in with Apple flow (iOS only). Full implementation in Task 10.
-	func start_apple_sign_in() -> void:
-		account_link_failed.emit("Apple Sign-In not yet available")
+## Trigger the Sign in with Apple flow (iOS only). Full implementation in Task 10.
+func start_apple_sign_in() -> void:
+	account_link_failed.emit("Apple Sign-In not yet available")
 
 ## Client-side percentile calculation.
 func _compute_percentile(player_guesses: int, total_players: int, top_100: Array) -> int:
