@@ -3384,7 +3384,7 @@ func _is_daily_challenge() -> bool:
 func _add_leaderboard_row(container: VBoxContainer, rank: int, entry: Dictionary, is_player: bool) -> void:
 	var row := HBoxContainer.new()
 	var rank_lbl := Label.new()
-	rank_lbl.text = "#%d" % rank
+	rank_lbl.text = ">100" if rank == -1 else "#%d" % rank
 	rank_lbl.custom_minimum_size.x = 40
 	var name_lbl := Label.new()
 	name_lbl.text = entry.get("display_name", "?")
@@ -3610,6 +3610,14 @@ func _show_result_sheet(did_win: bool, guesses_used: int) -> void:
 			sep.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			vbox.add_child(sep)
 			_add_leaderboard_row(vbox, player_rank, top_entries[player_rank - 1], true)
+		elif player_rank == -1:
+			var player_score := await BackendManager.fetch_player_score(date)
+			if not player_score.is_empty():
+				var sep := Label.new()
+				sep.text = "…"
+				sep.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+				vbox.add_child(sep)
+				_add_leaderboard_row(vbox, -1, player_score, true)
 
 	# Play Again + Menu buttons
 	var btn_row := HBoxContainer.new()

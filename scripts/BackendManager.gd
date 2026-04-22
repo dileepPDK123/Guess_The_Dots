@@ -370,10 +370,11 @@ func submit_daily_score(guesses_used: int, time_ms: int, solved: bool) -> void:
 func fetch_leaderboard(date: String) -> Array:
 	if SaveData.firebase_id_token.is_empty():
 		return []
-	var query_url := "%s:runQuery" % _fs_url
+	await _ensure_token_fresh()
+	var query_url := "%s/leaderboards/%s:runQuery" % [_fs_url, date]
 	var query_body := JSON.stringify({
 		"structuredQuery": {
-			"from": [{"collectionId": "scores", "allDescendants": true}],
+			"from": [{"collectionId": "scores"}],
 			"where": {
 				"fieldFilter": {
 					"field": {"fieldPath": "solved"},
@@ -394,7 +395,10 @@ func fetch_leaderboard(date: String) -> Array:
 	])
 	var http := HTTPRequest.new()
 	add_child(http)
-	http.request(query_url, headers, HTTPClient.METHOD_POST, query_body)
+	var err := http.request(query_url, headers, HTTPClient.METHOD_POST, query_body)
+	if err != OK:
+		http.queue_free()
+		return []
 	var response := await http.request_completed
 	http.queue_free()
 	if response[0] != HTTPRequest.RESULT_SUCCESS or response[1] != 200:
@@ -424,10 +428,13 @@ func fetch_leaderboard(date: String) -> Array:
 func fetch_player_count(date: String) -> int:
 	if SaveData.firebase_id_token.is_empty():
 		return 0
-	var query_url := "%s:runAggregationQuery" % _fs_url
+	await _ensure_token_fresh()
+	var query_url := "%s/leaderboards/%s:runAggregationQuery" % [_fs_url, date]
 	var query_body := JSON.stringify({
-		"structuredQuery": {"from": [{"collectionId": "scores", "allDescendants": true}]},
-		"aggregations": [{"count": {}}]
+		"structuredAggregationQuery": {
+			"structuredQuery": {"from": [{"collectionId": "scores"}]},
+			"aggregations": [{"count": {}, "alias": "count"}]
+		}
 	})
 	var headers := PackedStringArray([
 		"Content-Type: application/json",
@@ -449,7 +456,7 @@ func fetch_player_count(date: String) -> int:
 	var raw = json.get_data()
 	if not raw is Array or raw.is_empty():
 		return 0
-	return int(raw[0].get("result", {}).get("aggregateFields", {}).get("field_1", {}).get("integerValue", "0"))
+	return int(raw[0].get("result", {}).get("aggregateFields", {}).get("count", {}).get("integerValue", "0"))
 
 ## Client-side percentile calculation.
 func _compute_percentile(player_guesses: int, total_players: int, top_100: Array) -> int:
@@ -461,3 +468,21 @@ func _compute_percentile(player_guesses: int, total_players: int, top_100: Array
 			worse_count += 1
 	worse_count += max(0, total_players - 100)
 	return int((float(worse_count) / float(total_players)) * 100)
+
+## Fetch the current player's own score for a given day. Returns empty dict if not found.
+func fetch_player_score(date: String) -> Dictionary:
+	if SaveData.firebase_id_token.is_empty() or SaveData.firebase_uid.is_empty():
+		return {}
+	await _ensure_token_fresh()
+	var url := "%s/leaderboards/%s/scores/%s" % [_fs_url, date, SaveData.firebase_uid]
+	var doc := await _get_json(url, SaveData.firebase_id_token)
+	if doc.is_empty():
+		return {}
+	var fields := _firestore_fields_to_dict(doc)
+	if fields.is_empty():
+		return {}
+	return {
+		"display_name": fields.get("display_name", "?"),
+		"guesses_used": fields.get("guesses_used", 0),
+		"time_ms":      fields.get("time_ms", 0)
+	}
