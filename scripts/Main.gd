@@ -153,6 +153,9 @@ const TIME_TRIAL_TOTAL_PUZZLES := 5
 var _sandbox_setting_phase: bool = false
 var _sandbox_creator_sequence: Array[int] = []
 
+# ── Weekly Challenge ──────────────────────────────────────────────────────────
+var _weekly_week_num: int = 0
+
 # ── Duo mode ──────────────────────────────────────────────────────────────────
 var _duo_secret_b: Array[int] = []
 var _duo_history_b: Array = []
@@ -479,6 +482,33 @@ func start_new_game(mode: GameMode = GameMode.CLASSIC, campaign_level: int = 1) 
 func _populate_sequence(color_count: int) -> void:
 	for _i in range(slots_needed):
 		secret_sequence.append(rng.randi_range(0, color_count - 1))
+
+func _start_weekly_challenge() -> void:
+	var week_num: int = Time.get_datetime_dict_from_system().get("week", 1)
+	if SaveData.weekly_last_week == week_num:
+		_show_toast("Already completed this week's challenge!")
+		return
+	current_mode = GameMode.CLASSIC  # Weekly uses Classic rules
+	slots_needed  = 5
+	MAX_GUESSES   = 8
+	_weekly_week_num = week_num
+	# Seed from week number for consistent puzzle
+	rng.seed = week_num * 1337 + 42
+	secret_sequence = []
+	_populate_sequence(6)  # 6 colors for weekly
+	rng.randomize()  # Restore random state
+	guess_history.clear()
+	current_guess.clear()
+	_hard_locked_slots.clear()
+	round_active = true
+	_board_built = false
+	_board_rows.clear()
+	if has_node("GameLayer/GameVBox/BoardVBox"):
+		$GameLayer/GameVBox/BoardVBox.queue_free()
+	await get_tree().process_frame
+	_build_wordle_board()
+	_build_elimination_tracker()
+	_show_game_screen()
 
 func _start_mystery_game() -> void:
 	current_mode = GameMode.MYSTERY
@@ -1798,6 +1828,18 @@ func _finish_game(did_win: bool, message: String) -> void:
 	_pending_levels = SaveData.add_xp(_pending_xp)
 	SaveData.add_coins(_pending_coins)
 
+	# Weekly Challenge bonus
+	if _weekly_week_num > 0 and current_mode == GameMode.CLASSIC:
+		if did_win:
+			SaveData.weekly_last_week = _weekly_week_num
+			var bonus_xp := 200
+			var bonus_coins := 50
+			SaveData.add_xp(bonus_xp)
+			SaveData.add_coins(bonus_coins)
+			SaveData.save()
+			_show_toast("Weekly complete! +200 XP +50 coins 🏅")
+		_weekly_week_num = 0  # Reset regardless of win/loss
+
 	var newly_reached := SeasonManager.add_season_xp(xp_earned)
 	if not newly_reached.is_empty():
 		_show_toast("Milestone reached! Open Rewards to claim.")
@@ -2329,6 +2371,35 @@ func _open_mode_select() -> void:
 		grid.add_child(card)
 
 	vbox.add_child(grid)
+
+	# Weekly Challenge special card
+	var week_num_display: int = Time.get_datetime_dict_from_system().get("week", 1)
+	var weekly_done: bool = SaveData.weekly_last_week == week_num_display
+	var weekly_panel := PanelContainer.new()
+	_style_panel_glass(weekly_panel)
+	weekly_panel.custom_minimum_size = Vector2(0, 80)
+	var weekly_inner := VBoxContainer.new()
+	weekly_inner.set("theme_override_constants/separation", 4)
+	var weekly_title := Label.new()
+	weekly_title.text = "Weekly #%d%s" % [week_num_display, " ✓" if weekly_done else ""]
+	weekly_title.add_theme_color_override("font_color", Color("#6B4E71"))
+	weekly_title.add_theme_font_size_override("font_size", 22)
+	weekly_inner.add_child(weekly_title)
+	var weekly_desc := Label.new()
+	weekly_desc.text = "5 slots · 8 guesses · +200 XP" if not weekly_done else "Come back next week!"
+	weekly_desc.add_theme_color_override("font_color", Color("#9B7EA6"))
+	weekly_desc.add_theme_font_size_override("font_size", 18)
+	weekly_inner.add_child(weekly_desc)
+	weekly_panel.add_child(weekly_inner)
+	if not weekly_done:
+		var overlay_ref := sheet.get_meta("overlay") as Control
+		weekly_panel.gui_input.connect(func(event: InputEvent) -> void:
+			if event is InputEventMouseButton and event.pressed:
+				_close_bottom_sheet(overlay_ref, sheet)
+				get_tree().create_timer(0.3).timeout.connect(
+					func(): _start_weekly_challenge(), CONNECT_ONE_SHOT)
+		)
+	vbox.add_child(weekly_panel)
 
 	# Custom puzzle link
 	var custom_link := Button.new()
