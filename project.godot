@@ -39,3 +39,8 @@ window/stretch/mode="canvas_items"
 [dotnet]
 
 project/assembly_name="Guess the Dots"
+
+[Firebase]
+
+api_key=""
+project_id=""
