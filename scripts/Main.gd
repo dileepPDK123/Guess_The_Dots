@@ -8,7 +8,7 @@ extends Control
 ##   HARD     — 5-6 slots, 6 colors, 10 guesses; previous "exact" slots are locked
 ##   ZEN      — 4 slots, 5 colors, unlimited guesses, no timer, relaxed
 
-enum GameMode { CLASSIC, BLITZ, HARD, ZEN, CAMPAIGN, EASY, MYSTERY, TIME_TRIAL, DUO, SUDDEN_DEATH }
+enum GameMode { CLASSIC, BLITZ, HARD, ZEN, CAMPAIGN, EASY, MYSTERY, TIME_TRIAL, DUO, SUDDEN_DEATH, SANDBOX }
 
 class _BlitzRingControl extends Control:
 	var progress: float = 1.0
@@ -148,6 +148,10 @@ var _time_trial_total_time_ms: int = 0
 var _time_trial_puzzle_times: Array[int] = []
 var _time_trial_start_ms: int = 0
 const TIME_TRIAL_TOTAL_PUZZLES := 5
+
+# ── Sandbox mode ──────────────────────────────────────────────────────────────
+var _sandbox_setting_phase: bool = false
+var _sandbox_creator_sequence: Array[int] = []
 
 # ── Duo mode ──────────────────────────────────────────────────────────────────
 var _duo_secret_b: Array[int] = []
@@ -367,6 +371,8 @@ func _find_label(node_path: String) -> Label:
 # Navigation
 # =============================================================================
 func _show_menu() -> void:
+	if has_node("GameLayer/GameVBox/SandboxRevealBtn"):
+		$GameLayer/GameVBox/SandboxRevealBtn.queue_free()
 	menu_layer.visible        = true
 	game_layer.visible        = false
 	result_layer.visible      = false
@@ -443,6 +449,9 @@ func start_new_game(mode: GameMode = GameMode.CLASSIC, campaign_level: int = 1) 
 			return
 		GameMode.SUDDEN_DEATH:
 			_start_sudden_death_game()
+			return
+		GameMode.SANDBOX:
+			_start_sandbox_game()
 			return
 
 	_tracker_absent.clear()
@@ -692,6 +701,63 @@ func _start_next_time_trial_puzzle() -> void:
 	_build_wordle_board()
 	_build_elimination_tracker()
 	_show_game_screen()
+
+func _start_sandbox_game() -> void:
+	current_mode = GameMode.SANDBOX
+	slots_needed  = 4
+	MAX_GUESSES   = 999
+	secret_sequence = []
+	_sandbox_setting_phase = true
+	_sandbox_creator_sequence = []
+	_sandbox_creator_sequence.resize(4)
+	_sandbox_creator_sequence.fill(-1)
+	guess_history.clear()
+	current_guess.clear()
+	_hard_locked_slots.clear()
+	round_active = false
+	_board_built = false
+	_board_rows.clear()
+	if has_node("GameLayer/GameVBox/BoardVBox"):
+		$GameLayer/GameVBox/BoardVBox.queue_free()
+	if has_node("GameLayer/GameVBox/SandboxRevealBtn"):
+		$GameLayer/GameVBox/SandboxRevealBtn.queue_free()
+	await get_tree().process_frame
+	_build_wordle_board()
+	_show_game_screen()
+	# Setup secret-setting UI
+	status_label.text = "Set your secret — tap slots below"
+	submit_button.text = "Confirm Secret"
+	# Connect first row's slots for secret-setting
+	_setup_sandbox_creator_slots()
+	# Add Reveal button
+	var reveal_btn := Button.new()
+	reveal_btn.name = "SandboxRevealBtn"
+	reveal_btn.text = "Reveal Secret"
+	reveal_btn.custom_minimum_size = Vector2(0, 52)
+	reveal_btn.add_theme_color_override("font_color", Color("#9B7EA6"))
+	reveal_btn.pressed.connect(func():
+		if secret_sequence.is_empty():
+			_show_toast("No secret set yet")
+			return
+		var names := secret_sequence.map(func(ci): return PALETTE[ci]["name"])
+		_show_toast("Secret: " + " · ".join(names))
+	)
+	$GameLayer/GameVBox.add_child(reveal_btn)
+
+func _setup_sandbox_creator_slots() -> void:
+	if _board_rows.is_empty():
+		return
+	var row = _board_rows[0]
+	var slots: Array = row.slots if "slots" in row else []
+	for s in range(slots.size()):
+		var slot = slots[s]
+		var slot_index := s
+		slot.gui_input.connect(func(event: InputEvent) -> void:
+			if _sandbox_setting_phase and event is InputEventMouseButton and event.pressed:
+				if selected_color_index >= 0:
+					_sandbox_creator_sequence[slot_index] = selected_color_index
+					_set_slot_filled(slot, PALETTE[selected_color_index]["color"])
+		)
 
 func _expand_mystery_board() -> void:
 	# Resize current_guess to match new slots_needed
@@ -1281,6 +1347,10 @@ func _on_undo_pressed() -> void:
 func _on_hint_pressed() -> void:
 	if not round_active or _hint_ad_pending:
 		return
+	# Sandbox: hints are always free
+	if current_mode == GameMode.SANDBOX:
+		_grant_hint()
+		return
 	ComboManager.mark_hint_used()
 	if ShopManager.consume_hint_token():
 		_grant_hint()  # instant, no ad
@@ -1315,6 +1385,18 @@ func _grant_hint() -> bool:
 	return true
 
 func _on_submit_pressed() -> void:
+	# Sandbox: confirm secret phase
+	if current_mode == GameMode.SANDBOX and _sandbox_setting_phase:
+		if _sandbox_creator_sequence.has(-1):
+			_show_toast("Fill all 4 slots to set your secret")
+			return
+		secret_sequence = _sandbox_creator_sequence.duplicate()
+		_sandbox_setting_phase = false
+		round_active = true
+		submit_button.text = "SUBMIT"
+		status_label.text = "Now crack your own code!"
+		return
+
 	if not round_active or not _is_guess_complete():
 		return
 
@@ -1696,6 +1778,11 @@ func _finish_game(did_win: bool, message: String) -> void:
 			get_tree().create_timer(1.0).timeout.connect(
 				func() -> void: _start_next_time_trial_puzzle(), CONNECT_ONE_SHOT)
 		return  # Skip normal result sheet
+
+	# ── Sandbox (no XP, no coins, no streak) ────────────────────────────────────
+	if current_mode == GameMode.SANDBOX:
+		_show_result_sheet(did_win, guess_history.size())
+		return
 
 	SaveData.record_game(did_win, guess_history.size())
 
@@ -2201,6 +2288,7 @@ func _open_mode_select() -> void:
 		{"mode": GameMode.SUDDEN_DEATH, "name": "Sudden Death",
 		 "desc": "0 exact = instant loss",
 		 "locked": SaveData.level < 10, "unlock_label": "Unlock at Level 10"},
+		{"mode": GameMode.SANDBOX, "name": "Sandbox", "desc": "Set your own secret · free hints"},
 	]
 
 	var grid := GridContainer.new()
