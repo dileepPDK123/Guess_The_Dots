@@ -130,6 +130,17 @@ var unlocked_sound_packs: Array = []
 var unlocked_share_emoji: Array = []
 var unlocked_board_skins: Array = []
 
+# ── Firebase backend ──────────────────────────────────────────────────────────
+var firebase_uid: String = ""
+var firebase_id_token: String = ""
+var firebase_refresh_token: String = ""
+var firebase_token_expiry: int = 0      # Unix timestamp; token expires at this time
+var firebase_linked: bool = false       # true after Google/Apple account link
+var firebase_display_name: String = ""
+var firebase_apple_name: String = ""    # saved on first Apple link only
+var last_cloud_push: int = 0            # Unix timestamp; rate-limit guard
+var pending_cloud_push: bool = false    # retry flag — push failed, retry on next launch
+
 # ── Internal ──────────────────────────────────────────────────────────────────
 var _cfg := ConfigFile.new()
 
@@ -243,6 +254,17 @@ func load_data() -> void:
 	unlocked_share_emoji  = _cfg.get_value("shop", "unlocked_share_emoji",  [])
 	unlocked_board_skins  = _cfg.get_value("shop", "unlocked_board_skins",  [])
 
+	# Backend
+	firebase_uid           = _cfg.get_value("backend", "firebase_uid",          "")
+	firebase_id_token      = _cfg.get_value("backend", "firebase_id_token",     "")
+	firebase_refresh_token = _cfg.get_value("backend", "firebase_refresh_token","")
+	firebase_token_expiry  = _cfg.get_value("backend", "firebase_token_expiry", 0)
+	firebase_linked        = _cfg.get_value("backend", "firebase_linked",       false)
+	firebase_display_name  = _cfg.get_value("backend", "firebase_display_name", "")
+	firebase_apple_name    = _cfg.get_value("backend", "firebase_apple_name",   "")
+	last_cloud_push        = _cfg.get_value("backend", "last_cloud_push",       0)
+	pending_cloud_push     = _cfg.get_value("backend", "pending_cloud_push",    false)
+
 	# One-time migration: pull haptics from old settings.cfg if present
 	if not _cfg.get_value("settings", "haptics_migrated", false):
 		var old_cfg := ConfigFile.new()
@@ -345,6 +367,16 @@ func save() -> void:
 	_cfg.set_value("shop", "unlocked_sound_packs",  unlocked_sound_packs)
 	_cfg.set_value("shop", "unlocked_share_emoji",  unlocked_share_emoji)
 	_cfg.set_value("shop", "unlocked_board_skins",  unlocked_board_skins)
+
+	_cfg.set_value("backend", "firebase_uid",          firebase_uid)
+	_cfg.set_value("backend", "firebase_id_token",     firebase_id_token)
+	_cfg.set_value("backend", "firebase_refresh_token",firebase_refresh_token)
+	_cfg.set_value("backend", "firebase_token_expiry", firebase_token_expiry)
+	_cfg.set_value("backend", "firebase_linked",       firebase_linked)
+	_cfg.set_value("backend", "firebase_display_name", firebase_display_name)
+	_cfg.set_value("backend", "firebase_apple_name",   firebase_apple_name)
+	_cfg.set_value("backend", "last_cloud_push",       last_cloud_push)
+	_cfg.set_value("backend", "pending_cloud_push",    pending_cloud_push)
 
 	_cfg.save(SAVE_PATH)
 
