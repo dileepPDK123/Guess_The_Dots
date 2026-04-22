@@ -365,3 +365,99 @@ func submit_daily_score(guesses_used: int, time_ms: int, solved: bool) -> void:
 		}
 	}
 	await _put_json(score_url, JSON.stringify(doc), SaveData.firebase_id_token)
+
+## Fetch top 100 solved scores for today. Returns Array of Dicts.
+func fetch_leaderboard(date: String) -> Array:
+	if SaveData.firebase_id_token.is_empty():
+		return []
+	var query_url := "%s:runQuery" % _fs_url
+	var query_body := JSON.stringify({
+		"structuredQuery": {
+			"from": [{"collectionId": "scores", "allDescendants": true}],
+			"where": {
+				"fieldFilter": {
+					"field": {"fieldPath": "solved"},
+					"op": "EQUAL",
+					"value": {"booleanValue": true}
+				}
+			},
+			"orderBy": [
+				{"field": {"fieldPath": "guesses_used"}, "direction": "ASCENDING"},
+				{"field": {"fieldPath": "time_ms"},      "direction": "ASCENDING"}
+			],
+			"limit": 100
+		}
+	})
+	var headers := PackedStringArray([
+		"Content-Type: application/json",
+		"Authorization: Bearer " + SaveData.firebase_id_token
+	])
+	var http := HTTPRequest.new()
+	add_child(http)
+	http.request(query_url, headers, HTTPClient.METHOD_POST, query_body)
+	var response := await http.request_completed
+	http.queue_free()
+	if response[0] != HTTPRequest.RESULT_SUCCESS or response[1] != 200:
+		return []
+	var json := JSON.new()
+	if json.parse(response[3].get_string_from_utf8()) != OK:
+		return []
+	var raw = json.get_data()
+	if not raw is Array:
+		return []
+	var entries: Array = []
+	for item in raw:
+		if not item is Dictionary:
+			continue
+		var doc: Dictionary = item.get("document", {})
+		if doc.is_empty():
+			continue
+		var fields := _firestore_fields_to_dict(doc)
+		entries.append({
+			"display_name": fields.get("display_name", "?"),
+			"guesses_used": fields.get("guesses_used", 0),
+			"time_ms":      fields.get("time_ms", 0)
+		})
+	return entries
+
+## Fetch total count of all scores (solved + unsolved) for today.
+func fetch_player_count(date: String) -> int:
+	if SaveData.firebase_id_token.is_empty():
+		return 0
+	var query_url := "%s:runAggregationQuery" % _fs_url
+	var query_body := JSON.stringify({
+		"structuredQuery": {"from": [{"collectionId": "scores", "allDescendants": true}]},
+		"aggregations": [{"count": {}}]
+	})
+	var headers := PackedStringArray([
+		"Content-Type: application/json",
+		"Authorization: Bearer " + SaveData.firebase_id_token
+	])
+	var http := HTTPRequest.new()
+	add_child(http)
+	var err := http.request(query_url, headers, HTTPClient.METHOD_POST, query_body)
+	if err != OK:
+		http.queue_free()
+		return 0
+	var response := await http.request_completed
+	http.queue_free()
+	if response[0] != HTTPRequest.RESULT_SUCCESS or response[1] != 200:
+		return 0
+	var json := JSON.new()
+	if json.parse(response[3].get_string_from_utf8()) != OK:
+		return 0
+	var raw = json.get_data()
+	if not raw is Array or raw.is_empty():
+		return 0
+	return int(raw[0].get("result", {}).get("aggregateFields", {}).get("field_1", {}).get("integerValue", "0"))
+
+## Client-side percentile calculation.
+func _compute_percentile(player_guesses: int, total_players: int, top_100: Array) -> int:
+	if total_players == 0:
+		return 50
+	var worse_count := 0
+	for entry in top_100:
+		if entry.get("guesses_used", 0) > player_guesses:
+			worse_count += 1
+	worse_count += max(0, total_players - 100)
+	return int((float(worse_count) / float(total_players)) * 100)

@@ -3381,6 +3381,26 @@ func _game_elapsed_ms() -> int:
 func _is_daily_challenge() -> bool:
 	return _playing_daily
 
+func _add_leaderboard_row(container: VBoxContainer, rank: int, entry: Dictionary, is_player: bool) -> void:
+	var row := HBoxContainer.new()
+	var rank_lbl := Label.new()
+	rank_lbl.text = "#%d" % rank
+	rank_lbl.custom_minimum_size.x = 40
+	var name_lbl := Label.new()
+	name_lbl.text = entry.get("display_name", "?")
+	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var score_lbl := Label.new()
+	var guesses: int = entry.get("guesses_used", 0)
+	var time_sec: float = entry.get("time_ms", 0) / 1000.0
+	score_lbl.text = "%d guess%s · %ds" % [guesses, "es" if guesses != 1 else "", int(time_sec)]
+	if is_player:
+		for lbl in [rank_lbl, name_lbl, score_lbl]:
+			lbl.add_theme_color_override("font_color", Color("#F472B6"))
+	row.add_child(rank_lbl)
+	row.add_child(name_lbl)
+	row.add_child(score_lbl)
+	container.add_child(row)
+
 # =============================================================================
 # Resume Game
 # =============================================================================
@@ -3556,6 +3576,40 @@ func _show_result_sheet(did_win: bool, guesses_used: int) -> void:
 	share_btn.custom_minimum_size = Vector2(0, 52)
 	share_btn.pressed.connect(_on_share_pressed)
 	vbox.add_child(share_btn)
+
+	# Daily leaderboard section
+	if _is_daily_challenge():
+		var date := Time.get_date_string_from_system()
+		var top_entries := await BackendManager.fetch_leaderboard(date)
+		var total_count := await BackendManager.fetch_player_count(date)
+		var player_guesses := guess_history.size()
+		var percentile := BackendManager._compute_percentile(player_guesses, total_count, top_entries)
+
+		var rank_lbl := Label.new()
+		rank_lbl.text = "Better than %d%% of %d players today" % [percentile, total_count]
+		rank_lbl.add_theme_color_override("font_color", C_TEXT_SECONDARY)
+		rank_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		vbox.add_child(rank_lbl)
+
+		# Find player's rank in top 100
+		var player_rank := -1
+		for i in range(top_entries.size()):
+			if top_entries[i]["display_name"] == SaveData.firebase_display_name:
+				player_rank = i + 1
+				break
+
+		# Show top 10
+		for i in range(mini(top_entries.size(), 10)):
+			var is_player := (i + 1 == player_rank)
+			_add_leaderboard_row(vbox, i + 1, top_entries[i], is_player)
+
+		# Show player row if not in top 10
+		if player_rank > 10:
+			var sep := Label.new()
+			sep.text = "…"
+			sep.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			vbox.add_child(sep)
+			_add_leaderboard_row(vbox, player_rank, top_entries[player_rank - 1], true)
 
 	# Play Again + Menu buttons
 	var btn_row := HBoxContainer.new()
