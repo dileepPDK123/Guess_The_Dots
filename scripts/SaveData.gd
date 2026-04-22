@@ -500,6 +500,16 @@ func _check_login_streak() -> void:
 	elif last_login_date == "":
 		login_streak = 1
 	else:
+		# Check if a streak freeze can absorb a single missed day
+		var two_days_ago := _date_offset(-2)
+		if last_login_date == two_days_ago and login_streak >= 2 and streak_freezes > 0:
+			streak_freezes -= 1
+			last_login_date = today
+			save()
+			if login_streak > login_max_streak:
+				login_max_streak = login_streak
+			login_streak_updated.emit(login_streak, 0)
+			return
 		login_streak = 1  # missed a day — reset
 	if login_streak > login_max_streak:
 		login_max_streak = login_streak

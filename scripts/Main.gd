@@ -149,6 +149,11 @@ var _time_trial_puzzle_times: Array[int] = []
 var _time_trial_start_ms: int = 0
 const TIME_TRIAL_TOTAL_PUZZLES := 5
 
+# ── Retention mechanics ───────────────────────────────────────────────────────
+var _comeback_active: bool = false
+var _is_new_pb: bool = false
+var _game_start_ms: int = 0
+
 # ── Sandbox mode ──────────────────────────────────────────────────────────────
 var _sandbox_setting_phase: bool = false
 var _sandbox_creator_sequence: Array[int] = []
@@ -254,6 +259,9 @@ func _ready() -> void:
 
 	_show_menu()
 	tutorial_layer.start()
+
+	if not SaveData.resume_secret.is_empty():
+		_show_resume_prompt()
 
 	# Connect login streak reward signal — fires if today is a new day
 	SaveData.login_streak_updated.connect(_on_login_streak_updated)
@@ -385,6 +393,8 @@ func _show_menu() -> void:
 	AdManager.show_banner()
 
 func start_new_game(mode: GameMode = GameMode.CLASSIC, campaign_level: int = 1) -> void:
+	_game_start_ms            = Time.get_ticks_msec()
+	_is_new_pb                = false
 	current_mode              = mode
 	_current_campaign_level   = campaign_level
 	_campaign_won             = false
@@ -460,6 +470,10 @@ func start_new_game(mode: GameMode = GameMode.CLASSIC, campaign_level: int = 1) 
 	_tracker_absent.clear()
 	_tracker_present.clear()
 	_build_elimination_tracker()
+
+	# Comeback mechanic: silently reduce difficulty after 3+ consecutive losses
+	if _comeback_active:
+		slots_needed = max(3, slots_needed - 1)
 
 	current_guess.clear()
 	current_guess.resize(slots_needed)
@@ -1558,6 +1572,14 @@ func _on_submit_pressed() -> void:
 	_update_palette_selection()
 	_update_header_text("LOCKED: %d  ·  MISALIGNED: %d" % [int(result["exact"]), int(result["misplaced"])])
 
+	# Auto-save resume state after each submit (only resumable modes)
+	if round_active and current_mode not in [GameMode.SANDBOX, GameMode.TIME_TRIAL, GameMode.DUO]:
+		SaveData.resume_mode    = current_mode
+		SaveData.resume_secret  = secret_sequence.duplicate()
+		SaveData.resume_history = guess_history.duplicate(true)
+		SaveData.resume_campaign_level = _current_campaign_level
+		SaveData.save()
+
 # =============================================================================
 # Core algorithm
 # =============================================================================
@@ -1778,9 +1800,16 @@ var _pending_coins: int  = 0
 var _pending_levels: int = 0
 var _result_sheet_open: bool = false
 
-func _finish_game(did_win: bool, message: String) -> void:
+func _finish_game(did_win: bool, message: String = "") -> void:
 	if _result_sheet_open:
 		return  # already showing result — prevent double-call
+
+	# Clear resume state (game is now over)
+	SaveData.resume_mode    = -1
+	SaveData.resume_secret  = []
+	SaveData.resume_history = []
+	SaveData.save()
+
 	round_active        = false
 	_blitz_timer_active = false
 	_refresh_guess_ui()
@@ -1827,6 +1856,44 @@ func _finish_game(did_win: bool, message: String) -> void:
 		_pending_coins *= 2
 	_pending_levels = SaveData.add_xp(_pending_xp)
 	SaveData.add_coins(_pending_coins)
+
+	# First Win of Day bonus (×2 XP + 15 coins)
+	var today_str := Time.get_date_string_from_system()
+	if did_win and SaveData.last_first_win_date != today_str:
+		SaveData.last_first_win_date = today_str
+		SaveData.add_xp(_pending_xp)   # add xp_earned a second time (making it ×2 total)
+		SaveData.add_coins(15)
+		SaveData.save()
+		_show_toast("First win bonus! ×2 XP ☀️")
+
+	# Comeback mechanic tracking
+	var ineligible_comeback := [GameMode.CAMPAIGN, GameMode.TIME_TRIAL, GameMode.SUDDEN_DEATH]
+	if not ineligible_comeback.has(current_mode):
+		if did_win:
+			SaveData.consecutive_losses = 0
+			_comeback_active = false
+		else:
+			SaveData.consecutive_losses += 1
+			if SaveData.consecutive_losses >= 3:
+				_comeback_active = true
+		SaveData.save()
+
+	# Personal bests
+	if did_win:
+		var mode_key := GameMode.keys()[current_mode]
+		var pb: Dictionary = SaveData.personal_bests.get(mode_key, {})
+		var new_min_guesses: int = guess_history.size()
+		var new_min_time: int = _game_elapsed_ms()
+		_is_new_pb = false
+		if new_min_guesses < pb.get("min_guesses", 9999):
+			pb["min_guesses"] = new_min_guesses
+			_is_new_pb = true
+		if new_min_time < pb.get("min_time_ms", 9999999):
+			pb["min_time_ms"] = new_min_time
+			_is_new_pb = true
+		if _is_new_pb:
+			SaveData.personal_bests[mode_key] = pb
+			SaveData.save()
 
 	# Weekly Challenge bonus
 	if _weekly_week_num > 0 and current_mode == GameMode.CLASSIC:
@@ -3113,6 +3180,88 @@ func _close_bottom_sheet(overlay: Control, sheet: Control) -> void:
 		if is_instance_valid(sheet):
 			sheet.queue_free()
 	)
+
+# =============================================================================
+# Game timer
+# =============================================================================
+func _game_elapsed_ms() -> int:
+	return Time.get_ticks_msec() - _game_start_ms
+
+# =============================================================================
+# Resume Game
+# =============================================================================
+func _show_resume_prompt() -> void:
+	var sheet := _build_bottom_sheet("Resume Game?")
+	var vbox := sheet.get_node("Content") as VBoxContainer
+	var mode_name := GameMode.keys()[SaveData.resume_mode] if SaveData.resume_mode >= 0 else "Unknown"
+	var info_lbl := Label.new()
+	info_lbl.text = "%s — %d guesses in" % [mode_name.capitalize(), SaveData.resume_history.size()]
+	info_lbl.add_theme_color_override("font_color", C_TEXT_SECONDARY)
+	info_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(info_lbl)
+	var overlay := sheet.get_parent().get_child(sheet.get_index() - 1)
+	var resume_btn := Button.new()
+	resume_btn.text = "Resume"
+	resume_btn.custom_minimum_size = Vector2(0, 52)
+	resume_btn.pressed.connect(func() -> void:
+		_close_bottom_sheet(overlay, sheet)
+		get_tree().create_timer(0.3).timeout.connect(func() -> void: _resume_game(), CONNECT_ONE_SHOT)
+	)
+	var new_btn := Button.new()
+	new_btn.text = "New Game"
+	new_btn.custom_minimum_size = Vector2(0, 52)
+	new_btn.pressed.connect(func() -> void:
+		SaveData.resume_secret = []
+		SaveData.save()
+		_close_bottom_sheet(overlay, sheet)
+	)
+	vbox.add_child(resume_btn)
+	vbox.add_child(new_btn)
+
+func _resume_game() -> void:
+	current_mode    = SaveData.resume_mode as GameMode
+	secret_sequence = SaveData.resume_secret.duplicate()
+	guess_history   = SaveData.resume_history.duplicate(true)
+	slots_needed    = secret_sequence.size()
+	_active_row_index = guess_history.size()
+	MAX_GUESSES     = MAX_GUESSES_CLASSIC
+	_current_campaign_level = SaveData.resume_campaign_level
+	round_active    = true
+	_board_built    = false
+	_board_rows.clear()
+	_tracker_absent.clear()
+	_tracker_present.clear()
+	_hard_locked_slots.clear()
+	selected_color_index      = -1
+	_second_chance_used       = false
+	_xp_doubler_active        = false
+	_blitz_timer_active       = false
+	_hint_ad_pending          = false
+	_game_start_ms  = Time.get_ticks_msec()
+	_is_new_pb      = false
+	menu_layer.visible           = false
+	game_layer.visible           = true
+	result_layer.visible         = false
+	_result_sheet_open           = false
+	hamburger_button.visible     = true
+	hamburger_menu_layer.visible = false
+	AdManager.hide_banner()
+	_build_palette(6 if current_mode == GameMode.HARD else 5)
+	ComboManager.start_round()
+	current_guess.clear()
+	current_guess.resize(slots_needed)
+	for i in range(slots_needed):
+		current_guess[i] = -1
+	if has_node("GameLayer/GameVBox/BoardVBox"):
+		$GameLayer/GameVBox/BoardVBox.queue_free()
+	await get_tree().process_frame
+	if not is_instance_valid(self):
+		return
+	_build_elimination_tracker()
+	_build_wordle_board()
+	_update_palette_selection()
+	_refresh_guess_ui()
+	_update_header_text("RESUMED — SEQUENCE: %d NODES  ·  %d GUESSES USED" % [slots_needed, guess_history.size()])
 
 func _show_time_trial_result() -> void:
 	var score := _time_trial_puzzles_completed * 1000 - (_time_trial_total_time_ms / 1000)
