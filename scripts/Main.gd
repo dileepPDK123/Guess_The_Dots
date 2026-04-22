@@ -2011,6 +2011,7 @@ func _finish_game(did_win: bool, message: String = "") -> void:
 		slots_needed,
 		_game_elapsed_ms()
 	)
+	BackendManager.push_save()  # async fire-and-forget
 
 	_show_result_sheet(did_win, guess_history.size())
 	# TODO: update to pastel

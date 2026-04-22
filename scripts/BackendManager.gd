@@ -14,6 +14,7 @@ signal account_delete_failed(reason: String)
 
 const AUTH_URL := "https://identitytoolkit.googleapis.com/v1"
 const FS_URL_TEMPLATE := "https://firestore.googleapis.com/v1/projects/%s/databases/(default)/documents"
+const PUSH_RATE_LIMIT_SECONDS := 10
 
 var _api_key: String = ""
 var _project_id: String = ""
@@ -296,5 +297,24 @@ func pull_save() -> void:
 	else:
 		await push_save()
 
+## Push local save to Firestore. Rate limited to once per 10 seconds.
 func push_save() -> void:
-	pass
+	if SaveData.firebase_uid.is_empty() or SaveData.firebase_id_token.is_empty():
+		return
+	var now := int(Time.get_unix_time_from_system())
+	if now - SaveData.last_cloud_push < PUSH_RATE_LIMIT_SECONDS:
+		return  # Rate limited
+	await _ensure_token_fresh()
+	var url    := "%s/users/%s/save" % [_fs_url, SaveData.firebase_uid]
+	var fields := _save_to_firestore_fields()
+	var body   := JSON.stringify(fields)
+	var result := await _patch_json(url, body, SaveData.firebase_id_token)
+	if not result.is_empty():
+		SaveData.last_cloud_push = now
+		SaveData.pending_cloud_push = false
+		SaveData.save()
+		cloud_save_pushed.emit()
+	else:
+		# Push failed — mark for retry on next launch
+		SaveData.pending_cloud_push = true
+		SaveData.save()
