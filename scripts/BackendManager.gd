@@ -462,6 +462,49 @@ func fetch_player_count(date: String) -> int:
 		return 0
 	return int(raw[0].get("result", {}).get("aggregateFields", {}).get("count", {}).get("integerValue", "0"))
 
+## Link anonymous account to Google. Requires GoogleSignIn plugin.
+## google_token: the ID token returned by the plugin after user signs in.
+func link_google(google_token: String) -> void:
+	if SaveData.firebase_uid.is_empty():
+		account_link_failed.emit("Not signed in")
+		return
+	await _ensure_token_fresh()
+	var url := "%s/accounts:signInWithIdp?key=%s" % [AUTH_URL, _api_key]
+	var body := JSON.stringify({
+		"requestUri": "https://guess-the-dots.firebaseapp.com",
+		"postBody": "id_token=%s&providerId=google.com" % google_token,
+		"returnSecureToken": true,
+		"returnIdpCredential": true,
+		"idToken": SaveData.firebase_id_token
+	})
+	var result := await _post_json(url, body)
+	if result.is_empty() or result.has("error"):
+		account_link_failed.emit(result.get("error", {}).get("message", "Link failed"))
+		return
+	SaveData.firebase_id_token      = result.get("idToken",      SaveData.firebase_id_token)
+	SaveData.firebase_refresh_token = result.get("refreshToken", SaveData.firebase_refresh_token)
+	SaveData.firebase_token_expiry  = int(Time.get_unix_time_from_system()) + 3600
+	SaveData.firebase_linked        = true
+	var provider_data: Array = result.get("providerUserInfo", [])
+	if not provider_data.is_empty():
+		var display_name: String = provider_data[0].get("displayName", "")
+		if not display_name.is_empty():
+			SaveData.firebase_display_name = display_name.left(20)
+	SaveData.save()
+	account_linked.emit(SaveData.firebase_display_name)
+
+## Trigger the Google Sign-In flow (Android only). Calls link_google() with the token.
+func start_google_sign_in() -> void:
+	if not ClassDB.class_exists("GoogleSignIn"):
+		account_link_failed.emit("Google Sign-In plugin not available")
+		return
+	var gsi := ClassDB.instantiate("GoogleSignIn")
+	var token: String = await gsi.get_google_id_token()
+	if token.is_empty():
+		account_link_failed.emit("Sign-in cancelled")
+		return
+	await link_google(token)
+
 ## Client-side percentile calculation.
 func _compute_percentile(player_guesses: int, total_players: int, top_100: Array) -> int:
 	if total_players == 0:

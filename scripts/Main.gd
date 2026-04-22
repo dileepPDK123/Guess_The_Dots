@@ -286,6 +286,12 @@ func _ready() -> void:
 	BackendManager.cloud_save_pulled.connect(func():
 		_show_toast("Progress restored ✓")
 	)
+	BackendManager.account_linked.connect(func(linked_name: String) -> void:
+		_show_toast("Account linked! Progress protected ✓")
+	)
+	BackendManager.account_link_failed.connect(func(reason: String) -> void:
+		_show_toast("Sign-in failed: %s" % reason)
+	)
 
 # =============================================================================
 # Settings
@@ -893,6 +899,25 @@ func _open_settings_sheet() -> void:
 	hap_row.add_child(hap_lbl)
 	hap_row.add_child(hap_toggle)
 	vbox.add_child(hap_row)
+
+	# Account sync button
+	if not SaveData.firebase_linked:
+		var sync_btn := Button.new()
+		sync_btn.text = "Sign in to sync across devices"
+		sync_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		sync_btn.custom_minimum_size = Vector2(0, 52)
+		sync_btn.pressed.connect(func() -> void:
+			if OS.get_name() == "Android":
+				BackendManager.start_google_sign_in()
+			elif OS.get_name() == "iOS":
+				BackendManager.start_apple_sign_in()
+		)
+		vbox.add_child(sync_btn)
+	else:
+		var linked_lbl := Label.new()
+		linked_lbl.text = "✓ Synced as %s" % SaveData.firebase_display_name
+		linked_lbl.add_theme_color_override("font_color", Color("#10B981"))
+		vbox.add_child(linked_lbl)
 
 func _on_overlay_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
