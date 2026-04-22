@@ -540,6 +540,7 @@ func link_apple(apple_token: String, apple_display_name: String = "") -> void:
 	# Save Apple name immediately — Apple only provides it on first sign-in
 	if not apple_display_name.is_empty() and SaveData.firebase_apple_name.is_empty():
 		SaveData.firebase_apple_name = apple_display_name.left(20)
+		SaveData.save()
 	var url := "%s/accounts:signInWithIdp?key=%s" % [AUTH_URL, _api_key]
 	var body := JSON.stringify({
 		"requestUri": "https://guess-the-dots.firebaseapp.com",
