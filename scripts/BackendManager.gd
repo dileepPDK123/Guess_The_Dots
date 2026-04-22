@@ -283,6 +283,7 @@ func _apply_cloud_to_local(cloud: Dictionary) -> void:
 func pull_save() -> void:
 	if SaveData.firebase_uid.is_empty() or SaveData.firebase_id_token.is_empty():
 		return
+	await _ensure_token_fresh()
 	var url := "%s/users/%s/save" % [_fs_url, SaveData.firebase_uid]
 	var doc := await _get_json(url, SaveData.firebase_id_token)
 	if doc.is_empty():
