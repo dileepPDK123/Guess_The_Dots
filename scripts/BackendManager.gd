@@ -495,7 +495,7 @@ func link_google(google_token: String) -> void:
 	await _ensure_token_fresh()
 	var url := "%s/accounts:signInWithIdp?key=%s" % [AUTH_URL, _api_key]
 	var body := JSON.stringify({
-		"requestUri": "https://guess-the-dots.firebaseapp.com",
+		"requestUri": "https://guess-the-dots-ce3ff.firebaseapp.com",
 		"postBody": "id_token=%s&providerId=google.com" % google_token,
 		"returnSecureToken": true,
 		"returnIdpCredential": true,
@@ -543,7 +543,7 @@ func link_apple(apple_token: String, apple_display_name: String = "") -> void:
 		SaveData.save()
 	var url := "%s/accounts:signInWithIdp?key=%s" % [AUTH_URL, _api_key]
 	var body := JSON.stringify({
-		"requestUri": "https://guess-the-dots.firebaseapp.com",
+		"requestUri": "https://guess-the-dots-ce3ff.firebaseapp.com",
 		"postBody": "id_token=%s&providerId=apple.com" % apple_token,
 		"returnSecureToken": true,
 		"idToken": SaveData.firebase_id_token
