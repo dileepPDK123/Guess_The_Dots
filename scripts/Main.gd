@@ -407,13 +407,7 @@ func start_new_game(mode: GameMode = GameMode.CLASSIC, campaign_level: int = 1) 
 	current_mode              = mode
 	_current_campaign_level   = campaign_level
 	_campaign_won             = false
-	menu_layer.visible        = false
-	game_layer.visible        = true
-	result_layer.visible      = false
-	_result_sheet_open        = false
-	hamburger_button.visible  = true
-	hamburger_menu_layer.visible = false
-	AdManager.hide_banner()
+	_show_game_screen()
 	round_active              = true
 	_second_chance_used       = false
 	_xp_doubler_active        = false
@@ -559,13 +553,7 @@ func _start_mystery_game() -> void:
 	_board_built = false
 	_board_rows.clear()
 	_active_row_index = 0
-	menu_layer.visible = false
-	game_layer.visible = true
-	result_layer.visible = false
-	_result_sheet_open = false
-	hamburger_button.visible = true
-	hamburger_menu_layer.visible = false
-	AdManager.hide_banner()
+	_show_game_screen()
 	_build_palette(5)
 	ComboManager.start_round()
 	if has_node("GameLayer/GameVBox/BoardVBox"):
@@ -601,13 +589,7 @@ func _start_sudden_death_game() -> void:
 	_board_built = false
 	_board_rows.clear()
 	_active_row_index = 0
-	menu_layer.visible = false
-	game_layer.visible = true
-	result_layer.visible = false
-	_result_sheet_open = false
-	hamburger_button.visible = true
-	hamburger_menu_layer.visible = false
-	AdManager.hide_banner()
+	_show_game_screen()
 	_build_palette(5)
 	ComboManager.start_round()
 	if has_node("GameLayer/GameVBox/BoardVBox"):
@@ -621,13 +603,7 @@ func _start_sudden_death_game() -> void:
 
 func _start_duo_game() -> void:
 	current_mode = GameMode.DUO
-	menu_layer.visible           = false
-	game_layer.visible           = true
-	result_layer.visible         = false
-	_result_sheet_open           = false
-	hamburger_button.visible     = true
-	hamburger_menu_layer.visible = false
-	AdManager.hide_banner()
+	_show_game_screen()
 	round_active             = true
 	_second_chance_used      = false
 	_xp_doubler_active       = false
@@ -3233,7 +3209,15 @@ func _resume_game() -> void:
 	guess_history   = SaveData.resume_history.duplicate(true)
 	slots_needed    = secret_sequence.size()
 	_active_row_index = guess_history.size()
-	MAX_GUESSES     = MAX_GUESSES_CLASSIC
+	match current_mode:
+		GameMode.BLITZ:
+			MAX_GUESSES = MAX_GUESSES_BLITZ
+		GameMode.ZEN:
+			MAX_GUESSES = MAX_GUESSES_ZEN
+		GameMode.HARD:
+			MAX_GUESSES = MAX_GUESSES_HARD
+		_:
+			MAX_GUESSES = MAX_GUESSES_CLASSIC
 	_current_campaign_level = SaveData.resume_campaign_level
 	round_active    = true
 	_board_built    = false
