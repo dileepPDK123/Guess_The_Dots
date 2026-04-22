@@ -2018,7 +2018,7 @@ func _finish_game(did_win: bool, message: String = "") -> void:
 
 	if _is_daily_challenge():
 		var elapsed := _game_elapsed_ms()
-		BackendManager.submit_daily_score(guess_history.size(), elapsed, did_win)
+		await BackendManager.submit_daily_score(guess_history.size(), elapsed, did_win)
 
 	_show_result_sheet(did_win, guess_history.size())
 	# TODO: update to pastel
@@ -3604,7 +3604,7 @@ func _show_result_sheet(did_win: bool, guesses_used: int) -> void:
 			_add_leaderboard_row(vbox, i + 1, top_entries[i], is_player)
 
 		# Show player row if not in top 10
-		if player_rank > 10:
+		if player_rank > 10 and player_rank - 1 < top_entries.size():
 			var sep := Label.new()
 			sep.text = "…"
 			sep.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
