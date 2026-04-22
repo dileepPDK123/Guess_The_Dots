@@ -200,6 +200,11 @@ var _tracker_present: Dictionary = {}  # color_index → true (confirmed present
 # ── Blitz ring ────────────────────────────────────────────────────────────
 var _blitz_ring_node: Control
 
+# ── Dot trail ─────────────────────────────────────────────────────────────
+var _trail_line: Line2D = null
+var _trail_color: Color = Color.WHITE
+var _trail_dragging: bool = false
+
 # =============================================================================
 func _process(delta: float) -> void:
 	if not _blitz_timer_active or not round_active:
@@ -921,6 +926,36 @@ func _build_palette(count: int = 5) -> void:
 		)
 		palette_container.add_child(dot)
 		palette_buttons.append(dot)
+		dot.drag_started.connect(func(color, pos): _start_trail(color))
+		dot.drag_moved.connect(func(pos): _update_trail(pos))
+		dot.drag_ended.connect(func(): _end_trail())
+
+func _start_trail(color: Color) -> void:
+	if _trail_line != null and is_instance_valid(_trail_line):
+		_trail_line.queue_free()
+	_trail_line = Line2D.new()
+	_trail_line.width = 4.0
+	_trail_line.default_color = color
+	_trail_line.z_index = 100
+	add_child(_trail_line)
+	_trail_color = color
+	_trail_dragging = true
+
+func _update_trail(pos: Vector2) -> void:
+	if _trail_line == null or not is_instance_valid(_trail_line):
+		return
+	_trail_line.add_point(pos)
+	if _trail_line.get_point_count() > 20:
+		_trail_line.remove_point(0)
+
+func _end_trail() -> void:
+	_trail_dragging = false
+	if _trail_line == null or not is_instance_valid(_trail_line):
+		return
+	var tw := create_tween()
+	tw.tween_property(_trail_line, "modulate:a", 0.0, 0.2)
+	tw.tween_callback(_trail_line.queue_free)
+	_trail_line = null
 
 func _toggle_colorblind(enabled: bool) -> void:
 	SaveData.colorblind_enabled = enabled

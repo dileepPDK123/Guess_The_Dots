@@ -2,6 +2,10 @@ class_name ColorDotButton
 extends Button
 ## Palette dot button with neon glow ring, hover scale, and drag support.
 
+signal drag_started(color: Color, global_pos: Vector2)
+signal drag_moved(global_pos: Vector2)
+signal drag_ended
+
 var color_index: int = -1
 var color_name: String = ""
 var dot_color: Color = Color.WHITE
@@ -15,6 +19,15 @@ func _ready() -> void:
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	tooltip_text = color_name
 	set_selected(false)
+
+func _gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton:
+		if event.pressed:
+			drag_started.emit(dot_color, event.global_position)
+		else:
+			drag_ended.emit()
+	elif event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+		drag_moved.emit(event.global_position)
 
 func set_selected(is_selected: bool) -> void:
 	var sb := StyleBoxFlat.new()
