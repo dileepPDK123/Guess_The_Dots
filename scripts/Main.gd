@@ -1568,10 +1568,8 @@ func _on_submit_pressed() -> void:
 	_update_header_text("LOCKED: %d  ·  MISALIGNED: %d" % [int(result["exact"]), int(result["misplaced"])])
 
 	# Reaction message: show tiered feedback in status_label for continuing rounds
-	var _fb := guess_history.back()
-	var _exact_count: int = _fb.get("exact", 0)
 	var remaining := MAX_GUESSES - guess_history.size()
-	var reaction := _get_reaction_message(_exact_count, remaining)
+	var reaction := _get_reaction_message(ex, remaining)
 	if not reaction.is_empty():
 		status_label.text = reaction
 
@@ -1588,7 +1586,9 @@ func _on_submit_pressed() -> void:
 # =============================================================================
 func _get_reaction_message(exact: int, guesses_remaining: int) -> String:
 	var pool_key := ""
-	if exact == 0 and guess_history.size() == 1:
+	if guesses_remaining == 1:
+		pool_key = "last_chance"
+	elif exact == 0 and guess_history.size() == 1:
 		pool_key = "cold_start"
 	elif exact == 0 and guess_history.size() >= 4:
 		pool_key = "cold_late"
@@ -1596,8 +1596,6 @@ func _get_reaction_message(exact: int, guesses_remaining: int) -> String:
 		pool_key = "one_exact"
 	elif exact == slots_needed - 1:
 		pool_key = "one_away"
-	elif guesses_remaining == 1:
-		pool_key = "last_chance"
 	if pool_key.is_empty():
 		return ""
 	var pool: Array = REACTION_MESSAGES[pool_key]
