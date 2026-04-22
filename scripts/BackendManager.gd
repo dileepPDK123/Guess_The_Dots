@@ -576,6 +576,49 @@ func start_apple_sign_in() -> void:
 		return
 	await link_apple(token, name)
 
+## Delete account: anonymise leaderboard → delete save → delete auth → wipe local.
+## Emits account_deleted on success, account_delete_failed on error.
+func delete_account() -> void:
+	if SaveData.firebase_uid.is_empty():
+		account_delete_failed.emit("Not signed in")
+		return
+	await _ensure_token_fresh()
+	var uid   := SaveData.firebase_uid
+	var token := SaveData.firebase_id_token
+
+	# Step 1: Anonymise last 30 days of leaderboard scores
+	await _anonymise_leaderboard_scores(uid, token)
+
+	# Step 2: Delete cloud save document
+	var save_url := "%s/users/%s/save" % [_fs_url, uid]
+	await _delete_request(save_url, token)
+
+	# Step 3: Delete Firebase Auth user
+	var auth_url := "%s/accounts:delete?key=%s" % [AUTH_URL, _api_key]
+	var body     := JSON.stringify({"idToken": token})
+	await _post_json(auth_url, body)
+
+	# Step 4: Wipe local save file
+	DirAccess.remove_absolute("user://save_data.cfg")
+
+	# Step 5: Emit signal — Main.gd will restart to clean state
+	account_deleted.emit()
+
+## Anonymise display_name on last 30 days of leaderboard scores for this player.
+func _anonymise_leaderboard_scores(uid: String, token: String) -> void:
+	var now := Time.get_unix_time_from_system()
+	for days_back in range(30):
+		var unix := now - days_back * 86400
+		var date := Time.get_date_string_from_unix_time(int(unix))
+		var url  := "%s/leaderboards/%s/scores/%s" % [_fs_url, date, uid]
+		var existing := await _get_json(url, token)
+		if existing.is_empty():
+			continue
+		var patch_body := JSON.stringify({
+			"fields": {"display_name": {"stringValue": "Deleted Player"}}
+		})
+		await _patch_json(url + "?updateMask.fieldPaths=display_name", patch_body, token)
+
 ## Client-side percentile calculation.
 func _compute_percentile(player_guesses: int, total_players: int, top_100: Array) -> int:
 	if total_players == 0:

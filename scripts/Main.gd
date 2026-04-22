@@ -292,6 +292,12 @@ func _ready() -> void:
 	BackendManager.account_link_failed.connect(func(reason: String) -> void:
 		_show_toast("Sign-in failed: %s" % reason)
 	)
+	BackendManager.account_deleted.connect(func() -> void:
+		get_tree().change_scene_to_file("res://scenes/Splash.tscn")
+	)
+	BackendManager.account_delete_failed.connect(func(reason: String) -> void:
+		_show_toast("Delete failed: %s" % reason)
+	)
 
 # =============================================================================
 # Settings
@@ -919,6 +925,15 @@ func _open_settings_sheet() -> void:
 		linked_lbl.add_theme_color_override("font_color", Color("#10B981"))
 		vbox.add_child(linked_lbl)
 
+	# Delete account button
+	var delete_btn := Button.new()
+	delete_btn.text = "Delete Account & Data"
+	delete_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	delete_btn.custom_minimum_size = Vector2(0, 52)
+	delete_btn.add_theme_color_override("font_color", Color("#EF4444"))
+	delete_btn.pressed.connect(_confirm_account_deletion)
+	vbox.add_child(delete_btn)
+
 func _on_overlay_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		_close_hamburger_menu()
@@ -945,6 +960,30 @@ func _on_haptics_toggled(pressed: bool) -> void:
 	_save_settings()
 	if pressed:
 		_vibrate(30)
+
+func _confirm_account_deletion() -> void:
+	var sheet := _build_bottom_sheet("Delete Account?")
+	var vbox := sheet.get_node("Content") as VBoxContainer
+	var warn_lbl := Label.new()
+	warn_lbl.text = "This permanently deletes your progress, XP, achievements, and leaderboard history. This cannot be undone."
+	warn_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	warn_lbl.add_theme_color_override("font_color", Color("#6B4E71"))
+	vbox.add_child(warn_lbl)
+	var confirm_btn := Button.new()
+	confirm_btn.text = "Delete Everything"
+	confirm_btn.custom_minimum_size = Vector2(0, 52)
+	confirm_btn.add_theme_color_override("font_color", Color.WHITE)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color("#EF4444")
+	sb.corner_radius_top_left    = 14
+	sb.corner_radius_top_right   = 14
+	sb.corner_radius_bottom_left  = 14
+	sb.corner_radius_bottom_right = 14
+	confirm_btn.add_theme_stylebox_override("normal", sb)
+	confirm_btn.pressed.connect(func() -> void:
+		BackendManager.delete_account()
+	)
+	vbox.add_child(confirm_btn)
 
 # =============================================================================
 # Build UI
