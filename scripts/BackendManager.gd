@@ -529,9 +529,51 @@ func start_google_sign_in() -> void:
 		return
 	await link_google(token)
 
-## Trigger the Sign in with Apple flow (iOS only). Full implementation in Task 10.
+## Link anonymous account to Apple. Requires Sign in with Apple plugin.
+## apple_token: the ID token returned by the plugin.
+## apple_display_name: the name Apple sends on FIRST sign-in only (empty on subsequent).
+func link_apple(apple_token: String, apple_display_name: String = "") -> void:
+	if SaveData.firebase_uid.is_empty():
+		account_link_failed.emit("Not signed in")
+		return
+	await _ensure_token_fresh()
+	# Save Apple name immediately — Apple only provides it on first sign-in
+	if not apple_display_name.is_empty() and SaveData.firebase_apple_name.is_empty():
+		SaveData.firebase_apple_name = apple_display_name.left(20)
+	var url := "%s/accounts:signInWithIdp?key=%s" % [AUTH_URL, _api_key]
+	var body := JSON.stringify({
+		"requestUri": "https://guess-the-dots.firebaseapp.com",
+		"postBody": "id_token=%s&providerId=apple.com" % apple_token,
+		"returnSecureToken": true,
+		"idToken": SaveData.firebase_id_token
+	})
+	var result := await _post_json_any(url, body)
+	if result.is_empty() or result.has("error"):
+		account_link_failed.emit(result.get("error", {}).get("message", "Link failed"))
+		return
+	SaveData.firebase_id_token      = result.get("idToken",      SaveData.firebase_id_token)
+	SaveData.firebase_refresh_token = result.get("refreshToken", SaveData.firebase_refresh_token)
+	SaveData.firebase_token_expiry  = int(Time.get_unix_time_from_system()) + 3600
+	SaveData.firebase_linked        = true
+	# Use saved Apple name (not from result — Apple doesn't resend it after first sign-in)
+	if not SaveData.firebase_apple_name.is_empty():
+		SaveData.firebase_display_name = SaveData.firebase_apple_name
+	SaveData.save()
+	account_linked.emit(SaveData.firebase_display_name)
+
+## Trigger the Sign in with Apple flow (iOS only). Calls link_apple() with the token.
 func start_apple_sign_in() -> void:
-	account_link_failed.emit("Apple Sign-In not yet available")
+	if not Engine.has_singleton("AppleSignIn"):
+		account_link_failed.emit("Sign in with Apple plugin not available")
+		return
+	var asi = Engine.get_singleton("AppleSignIn")
+	var credential: Dictionary = await asi.get_apple_credential()
+	var token: String = credential.get("id_token", "")
+	var name: String  = credential.get("display_name", "")
+	if token.is_empty():
+		account_link_failed.emit("Sign-in cancelled")
+		return
+	await link_apple(token, name)
 
 ## Client-side percentile calculation.
 func _compute_percentile(player_guesses: int, total_players: int, top_100: Array) -> int:
