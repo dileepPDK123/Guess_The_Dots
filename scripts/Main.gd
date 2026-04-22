@@ -2866,11 +2866,113 @@ func _build_stats_screen() -> void:
 
 	vbox.add_child(HSeparator.new())
 
+	_build_deep_dive_section(vbox)
+
 	var close_btn := Button.new()
 	close_btn.text = "CLOSE"
 	close_btn.custom_minimum_size = Vector2(0, 64)
 	close_btn.pressed.connect(_close_stats_screen)
 	vbox.add_child(close_btn)
+
+func _build_deep_dive_section(container: VBoxContainer) -> void:
+	var deep_dive_content := VBoxContainer.new()
+	deep_dive_content.visible = false
+
+	var deep_dive_header := Button.new()
+	deep_dive_header.text = "Deep Dive ▼"
+	deep_dive_header.pressed.connect(func():
+		deep_dive_content.visible = not deep_dive_content.visible
+		deep_dive_header.text = "Deep Dive ▲" if deep_dive_content.visible else "Deep Dive ▼"
+	)
+	container.add_child(deep_dive_header)
+	container.add_child(deep_dive_content)
+
+	# Total time played
+	var total_ms: int = 0
+	for entry in SaveData.puzzle_history:
+		total_ms += entry.get("time_ms", 0)
+	var total_sec := total_ms / 1000
+	var time_lbl := Label.new()
+	time_lbl.text = "Total time played: %dm %ds" % [total_sec / 60, total_sec % 60]
+	deep_dive_content.add_child(time_lbl)
+
+	# Average guesses per mode (wins only)
+	var mode_stats: Dictionary = {}
+	for entry in SaveData.puzzle_history:
+		if entry.get("won", false):
+			var m: String = entry.get("mode", "CLASSIC")
+			if not mode_stats.has(m):
+				mode_stats[m] = {"total": 0, "count": 0, "best": 9999}
+			mode_stats[m]["total"] += entry.get("guesses", 0)
+			mode_stats[m]["count"] += 1
+			mode_stats[m]["best"] = mini(mode_stats[m]["best"], entry.get("guesses", 9999))
+	for mode_key in mode_stats:
+		var stats: Dictionary = mode_stats[mode_key]
+		var avg: float = float(stats["total"]) / float(stats["count"]) if stats["count"] > 0 else 0.0
+		var avg_lbl := Label.new()
+		avg_lbl.text = "%s: avg %.1f guesses, best %d" % [mode_key.capitalize(), avg, stats["best"]]
+		deep_dive_content.add_child(avg_lbl)
+
+	# Best day of week
+	var day_wins: Array = [0, 0, 0, 0, 0, 0, 0]
+	for entry in SaveData.puzzle_history:
+		if entry.get("won", false) and entry.has("date"):
+			var dt := Time.get_datetime_dict_from_datetime_string(entry["date"] + "T00:00:00", false)
+			var dow: int = dt.get("weekday", 0)
+			day_wins[dow % 7] += 1
+	if day_wins.max() > 0:
+		var best_day_idx := day_wins.find(day_wins.max())
+		const DAY_NAMES := ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+		var day_lbl := Label.new()
+		day_lbl.text = "Best day: %s (%d wins)" % [DAY_NAMES[best_day_idx], day_wins[best_day_idx]]
+		deep_dive_content.add_child(day_lbl)
+
+	var archive_btn := Button.new()
+	archive_btn.text = "Archive"
+	archive_btn.pressed.connect(_open_archive_screen)
+	container.add_child(archive_btn)
+
+func _open_archive_screen() -> void:
+	var sheet := _build_bottom_sheet("Puzzle Archive")
+	var content := sheet.get_node("Content") as VBoxContainer
+
+	if SaveData.puzzle_history.is_empty():
+		var empty_lbl := Label.new()
+		empty_lbl.text = "No games played yet."
+		empty_lbl.add_theme_color_override("font_color", C_TEXT_SECONDARY)
+		content.add_child(empty_lbl)
+		return
+
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var vbox := VBoxContainer.new()
+	scroll.add_child(vbox)
+	content.add_child(scroll)
+
+	# Group by date
+	var by_date: Dictionary = {}
+	for entry in SaveData.puzzle_history:
+		var d: String = entry.get("date", "Unknown")
+		if not by_date.has(d):
+			by_date[d] = []
+		by_date[d].append(entry)
+
+	var sorted_dates: Array = by_date.keys()
+	sorted_dates.sort()
+	sorted_dates.reverse()
+	for date in sorted_dates:
+		var date_lbl := Label.new()
+		date_lbl.text = date
+		date_lbl.add_theme_color_override("font_color", Color("#6B4E71"))
+		vbox.add_child(date_lbl)
+		for entry in by_date[date]:
+			var mode_str: String = entry.get("mode", "?")
+			var guesses: int = entry.get("guesses", 0)
+			var won: bool = entry.get("won", false)
+			var entry_lbl := Label.new()
+			entry_lbl.text = "  %s %s · %d guesses" % [mode_str, "✓" if won else "✗", guesses]
+			entry_lbl.add_theme_color_override("font_color", Color("#9B7BAB"))
+			vbox.add_child(entry_lbl)
 
 func _make_stat_tile(label: String, value: String, value_color: Color) -> Control:
 	var panel := PanelContainer.new()
