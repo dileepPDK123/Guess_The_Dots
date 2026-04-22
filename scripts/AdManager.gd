@@ -29,15 +29,8 @@ var _interstitial_loaded := false
 var _rewarded_loaded     := false
 var _banner_visible      := false
 
-var _rng                 := RandomNumberGenerator.new()
-var _games_played        := 0      # games finished since last interstitial
-var _next_ad_after       := 2      # show interstitial after this many games (2-4, randomised)
-
 # =============================================================================
 func _ready() -> void:
-	_rng.randomize()
-	_next_ad_after = _rng.randi_range(2, 4)
-
 	if not Engine.has_singleton("AdMob"):
 		push_warning("AdManager: AdMob singleton not found. Ads disabled (normal on desktop).")
 		return
@@ -73,34 +66,27 @@ func hide_banner() -> void:
 	_banner_visible = false
 
 # =============================================================================
-# Interstitial — call on_game_finished() after every round
+# Interstitial — shown only on loss, using persisted loss counter
 # =============================================================================
-func on_game_finished() -> void:
-	# Grace period: no interstitials for the first 3 games ever — prevents early churn
-	if SaveData.games_played <= 3:
+func on_game_lost() -> void:
+	if SaveData.ads_removed:
 		return
-	_games_played += 1
-	print("AdManager: games since last ad = %d / %d" % [_games_played, _next_ad_after])
-	if _games_played >= _next_ad_after:
+	SaveData.loss_count_since_ad += 1
+	SaveData.save()
+	if SaveData.loss_count_since_ad >= SaveData.next_ad_after_losses and SaveData.games_played > 3:
 		_try_show_interstitial()
+		SaveData.loss_count_since_ad = 0
+		SaveData.next_ad_after_losses = randi_range(2, 4)
+		SaveData.save()
 
 func _try_show_interstitial() -> void:
 	if _admob == null:
-		# On desktop just simulate the reset so logic still works
-		_reset_interstitial_counter()
 		return
 	if _interstitial_loaded:
 		_interstitial_loaded = false
 		_admob.show_interstitial()
 	else:
-		# Ad wasn't ready — skip this time, try next game
 		push_warning("AdManager: Interstitial not ready, skipping.")
-		_reset_interstitial_counter()
-
-func _reset_interstitial_counter() -> void:
-	_games_played  = 0
-	_next_ad_after = _rng.randi_range(2, 4)
-	print("AdManager: Next interstitial after %d games." % _next_ad_after)
 
 func _load_interstitial() -> void:
 	if _admob:
@@ -130,6 +116,26 @@ func _load_rewarded() -> void:
 		_admob.load_rewarded(REWARDED_UNIT_ID)
 
 # =============================================================================
+# Native Ad — stub; actual binding requires AdMob plugin on Android
+# =============================================================================
+var _native_ad_node: Control = null  # populated by AdMob plugin on Android
+
+func show_native_ad(parent_container: Control) -> void:
+	if SaveData.ads_removed:
+		return
+	if OS.get_name() != "Android":
+		return
+	# AdMob Native Ads: create via plugin when available
+	# This is a stub — actual AdMob Native Ad integration requires plugin bindings
+	if _native_ad_node != null and is_instance_valid(_native_ad_node):
+		parent_container.add_child(_native_ad_node)
+
+func hide_native_ad() -> void:
+	if _native_ad_node != null and is_instance_valid(_native_ad_node):
+		if _native_ad_node.get_parent() != null:
+			_native_ad_node.get_parent().remove_child(_native_ad_node)
+
+# =============================================================================
 # AdMob callbacks
 # =============================================================================
 func _on_interstitial_loaded() -> void:
@@ -142,7 +148,6 @@ func _on_interstitial_failed(error_code: int) -> void:
 	_load_interstitial()
 
 func _on_interstitial_closed() -> void:
-	_reset_interstitial_counter()
 	interstitial_closed.emit()
 	_load_interstitial()  # preload next one immediately
 

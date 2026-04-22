@@ -8,7 +8,7 @@ extends Control
 ##   HARD     — 5-6 slots, 6 colors, 10 guesses; previous "exact" slots are locked
 ##   ZEN      — 4 slots, 5 colors, unlimited guesses, no timer, relaxed
 
-enum GameMode { CLASSIC, BLITZ, HARD, ZEN, CAMPAIGN, EASY }
+enum GameMode { CLASSIC, BLITZ, HARD, ZEN, CAMPAIGN, EASY, MYSTERY, TIME_TRIAL, DUO, SUDDEN_DEATH, SANDBOX }
 
 class _BlitzRingControl extends Control:
 	var progress: float = 1.0
@@ -138,10 +138,44 @@ var current_mode: GameMode = GameMode.CLASSIC
 var _blitz_time_remaining: float = BLITZ_TIME
 var _blitz_timer_active: bool = false
 var _hard_locked_slots: Array[int] = []  # slot indices locked from previous exact hits
+var _mystery_true_slots: int = 0
 var _current_campaign_level: int = 1
 var _campaign_won: bool = false
-var _hint_used_this_round: bool = false
 var _hint_ad_pending: bool = false
+var _combo_label: Label = null
+var _time_trial_puzzles_completed: int = 0
+var _time_trial_total_time_ms: int = 0
+var _time_trial_puzzle_times: Array[int] = []
+var _time_trial_start_ms: int = 0
+const TIME_TRIAL_TOTAL_PUZZLES := 5
+
+const REACTION_MESSAGES: Dictionary = {
+	"cold_start": ["Cold start — keep going", "No hits yet, adjust your approach"],
+	"cold_late":  ["Still searching… think differently", "Zero exact — time to rethink"],
+	"one_exact":  ["One locked in!", "Warm — 1 confirmed"],
+	"one_away":   ["So close — one slot away!", "One more to crack it!"],
+	"last_chance": ["Last chance!", "Final attempt — make it count"],
+}
+
+# ── Retention mechanics ───────────────────────────────────────────────────────
+var _comeback_active: bool = false
+var _is_new_pb: bool = false
+var _game_start_ms: int = 0
+var _used_reactions: Array[String] = []
+
+# ── Sandbox mode ──────────────────────────────────────────────────────────────
+var _sandbox_setting_phase: bool = false
+var _sandbox_creator_sequence: Array[int] = []
+
+# ── Weekly Challenge ──────────────────────────────────────────────────────────
+var _weekly_week_num: int = 0
+
+# ── Duo mode ──────────────────────────────────────────────────────────────────
+var _duo_secret_b: Array[int] = []
+var _duo_history_b: Array = []
+var _duo_solved_a: bool = false
+var _duo_solved_b: bool = false
+var _duo_board_b_rows: Array = []
 
 # ── Overlay layers (built procedurally) ──────────────────────────────────────
 var _mode_select_layer: Control
@@ -165,6 +199,11 @@ var _tracker_present: Dictionary = {}  # color_index → true (confirmed present
 
 # ── Blitz ring ────────────────────────────────────────────────────────────
 var _blitz_ring_node: Control
+
+# ── Dot trail ─────────────────────────────────────────────────────────────
+var _trail_line: Line2D = null
+var _trail_color: Color = Color.WHITE
+var _trail_dragging: bool = false
 
 # =============================================================================
 func _process(delta: float) -> void:
@@ -224,11 +263,23 @@ func _ready() -> void:
 	menu_vbox.add_child(stats_btn)
 	menu_vbox.move_child(stats_btn, how_to_play_menu_button.get_index() + 1)
 
+	var rewards_btn := Button.new()
+	rewards_btn.text = "REWARDS"
+	rewards_btn.custom_minimum_size = Vector2(0, 74)
+	rewards_btn.add_theme_font_size_override("font_size", 26)
+	rewards_btn.pressed.connect(_open_rewards_screen)
+	menu_vbox.add_child(rewards_btn)
+	menu_vbox.move_child(rewards_btn, stats_btn.get_index() + 1)
+
 	_show_menu()
 	tutorial_layer.start()
 
+	if not SaveData.resume_secret.is_empty():
+		_show_resume_prompt()
+
 	# Connect login streak reward signal — fires if today is a new day
 	SaveData.login_streak_updated.connect(_on_login_streak_updated)
+	ComboManager.combo_changed.connect(_on_combo_changed)
 
 # =============================================================================
 # Settings
@@ -345,6 +396,8 @@ func _find_label(node_path: String) -> Label:
 # Navigation
 # =============================================================================
 func _show_menu() -> void:
+	if has_node("GameLayer/GameVBox/SandboxRevealBtn"):
+		$GameLayer/GameVBox/SandboxRevealBtn.queue_free()
 	menu_layer.visible        = true
 	game_layer.visible        = false
 	result_layer.visible      = false
@@ -353,17 +406,22 @@ func _show_menu() -> void:
 	round_active = false
 	AdManager.show_banner()
 
+func _show_game_screen() -> void:
+	menu_layer.visible           = false
+	game_layer.visible           = true
+	result_layer.visible         = false
+	_result_sheet_open           = false
+	hamburger_button.visible     = true
+	hamburger_menu_layer.visible = false
+	AdManager.hide_banner()
+
 func start_new_game(mode: GameMode = GameMode.CLASSIC, campaign_level: int = 1) -> void:
+	_game_start_ms            = Time.get_ticks_msec()
+	_is_new_pb                = false
 	current_mode              = mode
 	_current_campaign_level   = campaign_level
 	_campaign_won             = false
-	menu_layer.visible        = false
-	game_layer.visible        = true
-	result_layer.visible      = false
-	_result_sheet_open        = false
-	hamburger_button.visible  = true
-	hamburger_menu_layer.visible = false
-	AdManager.hide_banner()
+	_show_game_screen()
 	round_active              = true
 	_second_chance_used       = false
 	_xp_doubler_active        = false
@@ -374,6 +432,8 @@ func start_new_game(mode: GameMode = GameMode.CLASSIC, campaign_level: int = 1) 
 	selected_color_index      = -1
 	guess_history.clear()
 	secret_sequence.clear()
+	_used_reactions.clear()
+	ComboManager.start_round()
 
 	# Rebuild palette for the mode (Hard adds 6th color)
 	_build_palette(6 if mode == GameMode.HARD else 5)
@@ -409,11 +469,29 @@ func start_new_game(mode: GameMode = GameMode.CLASSIC, campaign_level: int = 1) 
 			slots_needed = cfg["slots"]
 			_build_palette(cfg["colors"])  # override the pre-match palette call
 			secret_sequence.assign(_campaign_sequence(_current_campaign_level, cfg["slots"], cfg["colors"]))
+		GameMode.MYSTERY:
+			_start_mystery_game()
+			return
+		GameMode.TIME_TRIAL:
+			_start_time_trial()
+			return
+		GameMode.DUO:
+			_start_duo_game()
+			return
+		GameMode.SUDDEN_DEATH:
+			_start_sudden_death_game()
+			return
+		GameMode.SANDBOX:
+			_start_sandbox_game()
+			return
 
 	_tracker_absent.clear()
 	_tracker_present.clear()
-	_hint_used_this_round = false
 	_build_elimination_tracker()
+
+	# Comeback mechanic: silently reduce difficulty after 3+ consecutive losses
+	if _comeback_active:
+		slots_needed = max(3, slots_needed - 1)
 
 	current_guess.clear()
 	current_guess.resize(slots_needed)
@@ -436,6 +514,312 @@ func start_new_game(mode: GameMode = GameMode.CLASSIC, campaign_level: int = 1) 
 func _populate_sequence(color_count: int) -> void:
 	for _i in range(slots_needed):
 		secret_sequence.append(rng.randi_range(0, color_count - 1))
+
+func _start_weekly_challenge() -> void:
+	var week_num: int = (Time.get_unix_time_from_system() / 604800) as int
+	if SaveData.weekly_last_week == week_num:
+		_show_toast("Already completed this week's challenge!")
+		return
+	current_mode = GameMode.CLASSIC  # Weekly uses Classic rules
+	slots_needed  = 5
+	MAX_GUESSES   = 8
+	_weekly_week_num = week_num
+	_game_start_ms = Time.get_ticks_msec()
+	_is_new_pb = false
+	_used_reactions.clear()
+	_second_chance_used = false
+	ComboManager.start_round()
+	_active_row_index = 0
+	# Seed from week number for consistent puzzle
+	rng.seed = week_num * 1337 + 42
+	secret_sequence = []
+	_populate_sequence(6)  # 6 colors for weekly
+	rng.randomize()  # Restore random state
+	guess_history.clear()
+	current_guess.clear()
+	current_guess.resize(slots_needed)
+	current_guess.fill(-1)
+	_hard_locked_slots.clear()
+	round_active = true
+	_board_built = false
+	_board_rows.clear()
+	if has_node("GameLayer/GameVBox/BoardVBox"):
+		$GameLayer/GameVBox/BoardVBox.queue_free()
+	await get_tree().process_frame
+	_build_wordle_board()
+	_build_elimination_tracker()
+	_show_game_screen()
+
+func _start_mystery_game() -> void:
+	current_mode = GameMode.MYSTERY
+	var true_slots := rng.randi_range(3, 5)
+	_mystery_true_slots = true_slots
+	slots_needed  = 1  # Start showing only 1 slot
+	MAX_GUESSES   = 12
+	secret_sequence.clear()
+	for _i in range(true_slots):
+		secret_sequence.append(rng.randi_range(0, 4))
+	guess_history.clear()
+	current_guess.clear()
+	current_guess.resize(slots_needed)
+	current_guess[0] = -1
+	_hard_locked_slots.clear()
+	_tracker_absent.clear()
+	_tracker_present.clear()
+	round_active = true
+	_second_chance_used = false
+	_xp_doubler_active = false
+	_blitz_timer_active = false
+	_blitz_time_remaining = BLITZ_TIME
+	_hint_ad_pending = false
+	selected_color_index = -1
+	_board_built = false
+	_board_rows.clear()
+	_active_row_index = 0
+	_show_game_screen()
+	_build_palette(5)
+	ComboManager.start_round()
+	if has_node("GameLayer/GameVBox/BoardVBox"):
+		$GameLayer/GameVBox/BoardVBox.queue_free()
+	await get_tree().process_frame
+	_build_elimination_tracker()
+	_build_wordle_board()
+	_update_palette_selection()
+	_refresh_guess_ui()
+	_update_header_text("TAP A COLOR TO FILL THE NEXT SLOT, OR DRAG IT IN.")
+
+func _start_sudden_death_game() -> void:
+	current_mode = GameMode.SUDDEN_DEATH
+	slots_needed  = rng.randi_range(3, 5)
+	MAX_GUESSES   = 10
+	secret_sequence.clear()
+	_populate_sequence(5)
+	guess_history.clear()
+	current_guess.clear()
+	current_guess.resize(slots_needed)
+	for i in range(slots_needed):
+		current_guess[i] = -1
+	_hard_locked_slots.clear()
+	_tracker_absent.clear()
+	_tracker_present.clear()
+	round_active = true
+	_second_chance_used = false
+	_xp_doubler_active = false
+	_blitz_timer_active = false
+	_blitz_time_remaining = BLITZ_TIME
+	_hint_ad_pending = false
+	selected_color_index = -1
+	_board_built = false
+	_board_rows.clear()
+	_active_row_index = 0
+	_show_game_screen()
+	_build_palette(5)
+	ComboManager.start_round()
+	if has_node("GameLayer/GameVBox/BoardVBox"):
+		$GameLayer/GameVBox/BoardVBox.queue_free()
+	await get_tree().process_frame
+	_build_wordle_board()
+	_build_elimination_tracker()
+	_update_palette_selection()
+	_refresh_guess_ui()
+	_update_header_text("ONE WRONG AND IT'S OVER — EVERY GUESS MUST HAVE AN EXACT.")
+
+func _start_duo_game() -> void:
+	current_mode = GameMode.DUO
+	_show_game_screen()
+	round_active             = true
+	_second_chance_used      = false
+	_xp_doubler_active       = false
+	_blitz_timer_active      = false
+	_blitz_time_remaining    = BLITZ_TIME
+	_hint_ad_pending         = false
+	selected_color_index     = -1
+	if _blitz_ring_node != null and is_instance_valid(_blitz_ring_node):
+		_blitz_ring_node.queue_free()
+		_blitz_ring_node = null
+	ComboManager.start_round()
+	slots_needed  = 4
+	MAX_GUESSES   = 10
+	secret_sequence.clear()
+	_populate_sequence(5)
+	_duo_secret_b.clear()
+	for _i in range(slots_needed):
+		_duo_secret_b.append(rng.randi_range(0, 4))
+	_duo_solved_a = false
+	_duo_solved_b = false
+	_duo_history_b.clear()
+	guess_history.clear()
+	current_guess.clear()
+	current_guess.resize(slots_needed)
+	for i in range(slots_needed):
+		current_guess[i] = -1
+	_hard_locked_slots.clear()
+	_tracker_absent.clear()
+	_tracker_present.clear()
+	_board_built = false
+	_board_rows.clear()
+	_duo_board_b_rows.clear()
+	_active_row_index = 0
+	# Remove existing board containers if present
+	if has_node("GameLayer/GameVBox/BoardVBox"):
+		var old := $GameLayer/GameVBox/BoardVBox
+		old.name = "_BoardVBoxOld"
+		old.queue_free()
+	if has_node("GameLayer/GameVBox/DuoHBox"):
+		var old2 := $GameLayer/GameVBox/DuoHBox
+		old2.name = "_DuoHBoxOld"
+		old2.queue_free()
+	_build_palette(5)
+	_build_elimination_tracker()
+	await get_tree().process_frame
+	_build_duo_boards()
+	_update_palette_selection()
+	_refresh_guess_ui()
+	_update_header_text("TAP A COLOR — SAME GUESS APPLIES TO BOTH CODES.")
+
+func _build_duo_boards() -> void:
+	# Remove old duo container if it exists
+	if has_node("GameLayer/GameVBox/DuoHBox"):
+		var old := $GameLayer/GameVBox/DuoHBox
+		old.name = "_DuoHBoxOld"
+		old.queue_free()
+
+	var hbox := HBoxContainer.new()
+	hbox.name = "DuoHBox"
+	hbox.add_theme_constant_override("separation", 8)
+	hbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	# Board A
+	_board_rows.clear()
+	var vbox_a := VBoxContainer.new()
+	vbox_a.name = "DuoBoardA"
+	vbox_a.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var lbl_a := Label.new()
+	lbl_a.text = "A"
+	lbl_a.add_theme_color_override("font_color", Color("#6B4E71"))
+	lbl_a.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox_a.add_child(lbl_a)
+	for i in range(MAX_GUESSES):
+		var row_data := _build_board_row(i)
+		vbox_a.add_child(row_data.container)
+		_board_rows.append(row_data)
+
+	# Board B
+	_duo_board_b_rows.clear()
+	var vbox_b := VBoxContainer.new()
+	vbox_b.name = "DuoBoardB"
+	vbox_b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var lbl_b := Label.new()
+	lbl_b.text = "B"
+	lbl_b.add_theme_color_override("font_color", Color("#6B4E71"))
+	lbl_b.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox_b.add_child(lbl_b)
+	for i in range(MAX_GUESSES):
+		var row_data := _build_board_row(i)
+		vbox_b.add_child(row_data.container)
+		_duo_board_b_rows.append(row_data)
+
+	hbox.add_child(vbox_a)
+	hbox.add_child(vbox_b)
+
+	var game_vbox := $GameLayer/GameVBox as VBoxContainer
+	game_vbox.add_child(hbox)
+	game_vbox.move_child(hbox, 1)  # after header (index 0)
+
+	_board_built = true
+	_connect_active_row_signals()
+
+func _start_time_trial() -> void:
+	current_mode = GameMode.TIME_TRIAL
+	_time_trial_puzzles_completed = 0
+	_time_trial_total_time_ms     = 0
+	_time_trial_puzzle_times.clear()
+	_time_trial_start_ms = Time.get_ticks_msec()
+	await _start_next_time_trial_puzzle()
+
+func _start_next_time_trial_puzzle() -> void:
+	slots_needed = rng.randi_range(3, 4)
+	MAX_GUESSES  = 10
+	secret_sequence = _generate_secret(slots_needed, 5)
+	guess_history.clear()
+	current_guess.clear()
+	_hard_locked_slots.clear()
+	round_active = true
+	_board_built = false
+	_board_rows.clear()
+	if has_node("GameLayer/GameVBox/BoardVBox"):
+		$GameLayer/GameVBox/BoardVBox.queue_free()
+	await get_tree().process_frame
+	_build_wordle_board()
+	_build_elimination_tracker()
+	_show_game_screen()
+
+func _start_sandbox_game() -> void:
+	current_mode = GameMode.SANDBOX
+	slots_needed  = 4
+	MAX_GUESSES   = 999
+	secret_sequence = []
+	_sandbox_setting_phase = true
+	_sandbox_creator_sequence = []
+	_sandbox_creator_sequence.resize(4)
+	_sandbox_creator_sequence.fill(-1)
+	guess_history.clear()
+	current_guess.clear()
+	_hard_locked_slots.clear()
+	round_active = false
+	_board_built = false
+	_board_rows.clear()
+	if has_node("GameLayer/GameVBox/BoardVBox"):
+		$GameLayer/GameVBox/BoardVBox.queue_free()
+	if has_node("GameLayer/GameVBox/SandboxRevealBtn"):
+		$GameLayer/GameVBox/SandboxRevealBtn.queue_free()
+	await get_tree().process_frame
+	_build_wordle_board()
+	_show_game_screen()
+	# Setup secret-setting UI
+	status_label.text = "Set your secret — tap slots below"
+	submit_button.text = "Confirm Secret"
+	# Connect first row's slots for secret-setting
+	_setup_sandbox_creator_slots()
+	# Add Reveal button
+	var reveal_btn := Button.new()
+	reveal_btn.name = "SandboxRevealBtn"
+	reveal_btn.text = "Reveal Secret"
+	reveal_btn.custom_minimum_size = Vector2(0, 52)
+	reveal_btn.add_theme_color_override("font_color", Color("#9B7EA6"))
+	reveal_btn.pressed.connect(func():
+		if secret_sequence.is_empty():
+			_show_toast("No secret set yet")
+			return
+		var names := secret_sequence.map(func(ci): return PALETTE[ci]["name"])
+		_show_toast("Secret: " + " · ".join(names))
+	)
+	$GameLayer/GameVBox.add_child(reveal_btn)
+
+func _setup_sandbox_creator_slots() -> void:
+	if _board_rows.is_empty():
+		return
+	var row = _board_rows[0]
+	var slots: Array = row.slots if "slots" in row else []
+	for s in range(slots.size()):
+		var slot = slots[s]
+		var slot_index := s
+		slot.gui_input.connect(func(event: InputEvent) -> void:
+			if _sandbox_setting_phase and event is InputEventMouseButton and event.pressed:
+				if selected_color_index >= 0:
+					_sandbox_creator_sequence[slot_index] = selected_color_index
+					_set_slot_filled(slot, PALETTE[selected_color_index]["color"])
+		)
+
+func _expand_mystery_board() -> void:
+	# Resize current_guess to match new slots_needed
+	current_guess.resize(slots_needed)
+	current_guess[slots_needed - 1] = -1
+	_board_rows.clear()
+	await get_tree().process_frame
+	_build_wordle_board()
+	_update_palette_selection()
+	_refresh_guess_ui()
 
 func _return_to_menu() -> void:
 	_show_menu()
@@ -550,6 +934,36 @@ func _build_palette(count: int = 5) -> void:
 		)
 		palette_container.add_child(dot)
 		palette_buttons.append(dot)
+		dot.drag_started.connect(func(color, pos): _start_trail(color))
+		dot.drag_moved.connect(func(pos): _update_trail(pos))
+		dot.drag_ended.connect(func(): _end_trail())
+
+func _start_trail(color: Color) -> void:
+	if _trail_line != null and is_instance_valid(_trail_line):
+		_trail_line.queue_free()
+	_trail_line = Line2D.new()
+	_trail_line.width = 4.0
+	_trail_line.default_color = color
+	_trail_line.z_index = 100
+	add_child(_trail_line)
+	_trail_color = color
+	_trail_dragging = true
+
+func _update_trail(pos: Vector2) -> void:
+	if _trail_line == null or not is_instance_valid(_trail_line):
+		return
+	_trail_line.add_point(pos)
+	if _trail_line.get_point_count() > 20:
+		_trail_line.remove_point(0)
+
+func _end_trail() -> void:
+	_trail_dragging = false
+	if _trail_line == null or not is_instance_valid(_trail_line):
+		return
+	var tw := create_tween()
+	tw.tween_property(_trail_line, "modulate:a", 0.0, 0.2)
+	tw.tween_callback(_trail_line.queue_free)
+	_trail_line = null
 
 func _toggle_colorblind(enabled: bool) -> void:
 	SaveData.colorblind_enabled = enabled
@@ -1015,28 +1429,20 @@ func _on_undo_pressed() -> void:
 func _on_hint_pressed() -> void:
 	if not round_active or _hint_ad_pending:
 		return
-
-	# Check if any absent colors remain to reveal
-	var absent_colors: Array[int] = []
-	for ci in range(PALETTE.size()):
-		if not secret_sequence.has(ci) and not _tracker_absent.has(ci):
-			absent_colors.append(ci)
-
-	if absent_colors.is_empty():
-		hint_button.disabled = true
-		status_label.text = "All absent colors already revealed."
+	# Sandbox: hints are always free
+	if current_mode == GameMode.SANDBOX:
+		_grant_hint()
 		return
-
+	ComboManager.mark_hint_used()
+	if ShopManager.consume_hint_token():
+		_grant_hint()  # instant, no ad
+		return
+	# Fall through to rewarded ad
 	if AdManager.is_rewarded_ready():
-		_hint_ad_pending = true
 		AdManager.rewarded_earned.connect(_on_hint_rewarded_earned, CONNECT_ONE_SHOT)
-		var shown := AdManager.show_rewarded()
-		if not shown:
-			AdManager.rewarded_earned.disconnect(_on_hint_rewarded_earned)
-			_hint_ad_pending = false
-			status_label.text = "Ad not ready — try again shortly."
+		AdManager.show_rewarded()
 	else:
-		status_label.text = "Hint not available yet — retry shortly."
+		_grant_hint()
 
 func _on_hint_rewarded_earned() -> void:
 	_hint_ad_pending = false
@@ -1054,7 +1460,6 @@ func _grant_hint() -> bool:
 		return false
 	var reveal_idx := absent_colors[rng.randi() % absent_colors.size()]
 	_mark_tracker_absent(reveal_idx)
-	_hint_used_this_round = true
 	var color_name: String = str(PALETTE[reveal_idx]["name"])
 	status_label.text = "%s is not in the sequence." % color_name
 	_vibrate(40)
@@ -1062,8 +1467,67 @@ func _grant_hint() -> bool:
 	return true
 
 func _on_submit_pressed() -> void:
+	# Sandbox: confirm secret phase
+	if current_mode == GameMode.SANDBOX and _sandbox_setting_phase:
+		if _sandbox_creator_sequence.has(-1):
+			_show_toast("Fill all 4 slots to set your secret")
+			return
+		secret_sequence = _sandbox_creator_sequence.duplicate()
+		_sandbox_setting_phase = false
+		round_active = true
+		submit_button.text = "SUBMIT"
+		status_label.text = "Now crack your own code!"
+		return
+
 	if not round_active or not _is_guess_complete():
 		return
+
+	# ── Duo mode ──────────────────────────────────────────────────────────────
+	if current_mode == GameMode.DUO:
+		var guess_copy_duo: Array[int] = []
+		guess_copy_duo.assign(current_guess)
+		var feedback_a := _evaluate_guess_against(guess_copy_duo, secret_sequence)
+		var feedback_b := _evaluate_guess_against(guess_copy_duo, _duo_secret_b)
+		var entry_a := {
+			"values":    guess_copy_duo,
+			"exact":     int(feedback_a["exact"]),
+			"misplaced": int(feedback_a["misplaced"]),
+			"per_dot":   feedback_a["per_dot"],
+		}
+		var entry_b := {
+			"values":    guess_copy_duo,
+			"exact":     int(feedback_b["exact"]),
+			"misplaced": int(feedback_b["misplaced"]),
+			"per_dot":   feedback_b["per_dot"],
+		}
+		guess_history.append(entry_a)
+		_duo_history_b.append(entry_b)
+		_vibrate(35)
+		SoundManager.play("submit")
+		var row_index := guess_history.size() - 1
+		round_active = false
+		await _flip_row_reveal(_board_rows[row_index], entry_a)
+		_apply_past_row(_duo_board_b_rows[row_index], entry_b)
+		round_active = true
+		_active_row_index = guess_history.size()
+		if _active_row_index < _board_rows.size():
+			_connect_active_row_signals()
+		if int(feedback_a["exact"]) == slots_needed:
+			_duo_solved_a = true
+		if int(feedback_b["exact"]) == slots_needed:
+			_duo_solved_b = true
+		for i in range(current_guess.size()):
+			current_guess[i] = -1
+		_refresh_guess_ui()
+		_update_palette_selection()
+		_update_header_text("LOCKED A: %d  ·  LOCKED B: %d" % [int(feedback_a["exact"]), int(feedback_b["exact"])])
+		if _duo_solved_a and _duo_solved_b:
+			_finish_game(true, "Both codes cracked!")
+		elif guess_history.size() >= MAX_GUESSES:
+			_finish_game(false, "Out of guesses")
+		return
+	# ── End Duo mode ───────────────────────────────────────────────────────────
+
 	var guess_copy: Array[int] = []
 	guess_copy.assign(current_guess)
 	var result := _evaluate_guess(guess_copy)
@@ -1103,6 +1567,11 @@ func _on_submit_pressed() -> void:
 	elif mis > 0:
 		SoundManager.play("misplace")
 
+	# Sudden Death: zero exact = instant loss
+	if current_mode == GameMode.SUDDEN_DEATH and int(result["exact"]) == 0:
+		_finish_game(false)
+		return
+
 	if int(result["exact"]) == slots_needed:
 		_finish_game(true, "Cracked it! %d guess%s." % [
 			guess_history.size(), "" if guess_history.size() == 1 else "es"
@@ -1130,13 +1599,59 @@ func _on_submit_pressed() -> void:
 	else:
 		for index in range(current_guess.size()):
 			current_guess[index] = -1
+
+	# Mystery mode: reveal one more slot per guess
+	if current_mode == GameMode.MYSTERY and slots_needed < _mystery_true_slots:
+		slots_needed += 1
+		_expand_mystery_board()
+		return
+
 	_refresh_guess_ui()
 	_update_palette_selection()
 	_update_header_text("LOCKED: %d  ·  MISALIGNED: %d" % [int(result["exact"]), int(result["misplaced"])])
 
+	# Reaction message: show tiered feedback in status_label for continuing rounds
+	var remaining := MAX_GUESSES - guess_history.size()
+	var reaction := _get_reaction_message(ex, remaining)
+	if not reaction.is_empty():
+		status_label.text = reaction
+
+	# Auto-save resume state after each submit (only resumable modes)
+	if round_active and current_mode not in [GameMode.SANDBOX, GameMode.TIME_TRIAL, GameMode.DUO]:
+		SaveData.resume_mode    = current_mode
+		SaveData.resume_secret  = secret_sequence.duplicate()
+		SaveData.resume_history = guess_history.duplicate(true)
+		SaveData.resume_campaign_level = _current_campaign_level
+		SaveData.save()
+
 # =============================================================================
 # Core algorithm
 # =============================================================================
+func _get_reaction_message(exact: int, guesses_remaining: int) -> String:
+	var pool_key := ""
+	if guesses_remaining == 1:
+		pool_key = "last_chance"
+	elif exact == 0 and guess_history.size() == 1:
+		pool_key = "cold_start"
+	elif exact == 0 and guess_history.size() >= 4:
+		pool_key = "cold_late"
+	elif exact == 1:
+		pool_key = "one_exact"
+	elif exact == slots_needed - 1:
+		pool_key = "one_away"
+	if pool_key.is_empty():
+		return ""
+	var pool: Array = REACTION_MESSAGES[pool_key]
+	var candidates := pool.filter(func(m): return not _used_reactions.has(m))
+	if candidates.is_empty():
+		candidates = pool
+		_used_reactions.clear()
+	var msg: String = candidates[rng.randi() % candidates.size()]
+	_used_reactions.append(msg)
+	if _used_reactions.size() > 4:
+		_used_reactions.pop_front()
+	return msg
+
 func _evaluate_guess(guess: Array[int]) -> Dictionary:
 	var exact := 0
 	var per_dot: Array = []
@@ -1164,6 +1679,30 @@ func _evaluate_guess(guess: Array[int]) -> Dictionary:
 			per_dot[i] = "misplaced"
 			secret_remaining[found] = -1
 
+	return {"exact": exact, "misplaced": misplaced, "per_dot": per_dot}
+
+func _evaluate_guess_against(guess: Array[int], secret: Array[int]) -> Dictionary:
+	var exact := 0
+	var per_dot: Array = []
+	var secret_remaining := secret.duplicate()
+	var guess_remaining  := guess.duplicate()
+	for i in range(guess.size()):
+		if guess[i] == secret[i]:
+			exact += 1
+			per_dot.append("exact")
+			secret_remaining[i] = -1
+			guess_remaining[i]  = -1
+		else:
+			per_dot.append("absent")
+	var misplaced := 0
+	for i in range(guess.size()):
+		if guess_remaining[i] == -1:
+			continue
+		var found := secret_remaining.find(guess_remaining[i])
+		if found != -1:
+			misplaced += 1
+			per_dot[i] = "misplaced"
+			secret_remaining[found] = -1
 	return {"exact": exact, "misplaced": misplaced, "per_dot": per_dot}
 
 # =============================================================================
@@ -1312,6 +1851,16 @@ func _build_history_row(guess_number: int, item: Dictionary) -> Control:
 
 	return panel
 
+func _base_xp_for_mode() -> int:
+	match current_mode:
+		GameMode.EASY:     return 20
+		GameMode.CLASSIC:  return 30
+		GameMode.BLITZ:    return 40
+		GameMode.HARD:     return 50
+		GameMode.ZEN:      return 20
+		GameMode.CAMPAIGN: return 35
+		_:                 return 30
+
 # =============================================================================
 # Game end
 # =============================================================================
@@ -1320,9 +1869,16 @@ var _pending_coins: int  = 0
 var _pending_levels: int = 0
 var _result_sheet_open: bool = false
 
-func _finish_game(did_win: bool, message: String) -> void:
+func _finish_game(did_win: bool, message: String = "") -> void:
 	if _result_sheet_open:
 		return  # already showing result — prevent double-call
+
+	# Clear resume state (game is now over)
+	SaveData.resume_mode    = -1
+	SaveData.resume_secret  = []
+	SaveData.resume_history = []
+	SaveData.save()
+
 	round_active        = false
 	_blitz_timer_active = false
 	_refresh_guess_ui()
@@ -1336,15 +1892,32 @@ func _finish_game(did_win: bool, message: String) -> void:
 		_vibrate_lose()
 		SoundManager.play("lose")
 
+	# ── Time Trial ──────────────────────────────────────────────────────────────
+	if current_mode == GameMode.TIME_TRIAL:
+		var puzzle_ms := Time.get_ticks_msec() - _time_trial_start_ms
+		_time_trial_puzzle_times.append(puzzle_ms)
+		_time_trial_total_time_ms += puzzle_ms
+		if did_win:
+			_time_trial_puzzles_completed += 1
+		if _time_trial_puzzles_completed >= TIME_TRIAL_TOTAL_PUZZLES or not did_win:
+			_show_time_trial_result()
+		else:
+			_time_trial_start_ms = Time.get_ticks_msec()
+			get_tree().create_timer(1.0).timeout.connect(
+				func() -> void: _start_next_time_trial_puzzle(), CONNECT_ONE_SHOT)
+		return  # Skip normal result sheet
+
+	# ── Sandbox (no XP, no coins, no streak) ────────────────────────────────────
+	if current_mode == GameMode.SANDBOX:
+		_show_result_sheet(did_win, guess_history.size())
+		return
+
 	SaveData.record_game(did_win, guess_history.size())
 
 	# XP / coins calculation — stored as pending so callbacks can reference them
-	_pending_xp = 15
-	if did_win:
-		_pending_xp += 50
-		_pending_xp += (MAX_GUESSES - guess_history.size()) * 10
-		if guess_history.size() <= 3:
-			_pending_xp += 50
+	var multiplier := ComboManager.on_game_finished(did_win, GameMode.keys()[current_mode])
+	var xp_earned  := int(_base_xp_for_mode() * multiplier)
+	_pending_xp = xp_earned
 	if _xp_doubler_active:
 		_pending_xp *= 2
 	_pending_coins = 10 if did_win else 0
@@ -1353,13 +1926,68 @@ func _finish_game(did_win: bool, message: String) -> void:
 	_pending_levels = SaveData.add_xp(_pending_xp)
 	SaveData.add_coins(_pending_coins)
 
+	# First Win of Day bonus (×2 XP + 15 coins)
+	var today_str := Time.get_date_string_from_system()
+	if did_win and SaveData.last_first_win_date != today_str:
+		SaveData.last_first_win_date = today_str
+		SaveData.add_xp(_pending_xp)   # add xp_earned a second time (making it ×2 total)
+		SaveData.add_coins(15)
+		SaveData.save()
+		_show_toast("First win bonus! ×2 XP ☀️")
+
+	# Comeback mechanic tracking
+	var ineligible_comeback := [GameMode.CAMPAIGN, GameMode.TIME_TRIAL, GameMode.SUDDEN_DEATH]
+	if not ineligible_comeback.has(current_mode):
+		if did_win:
+			SaveData.consecutive_losses = 0
+			_comeback_active = false
+		else:
+			SaveData.consecutive_losses += 1
+			if SaveData.consecutive_losses >= 3:
+				_comeback_active = true
+		SaveData.save()
+
+	# Personal bests
+	if did_win:
+		var mode_key := GameMode.keys()[current_mode]
+		var pb: Dictionary = SaveData.personal_bests.get(mode_key, {})
+		var new_min_guesses: int = guess_history.size()
+		var new_min_time: int = _game_elapsed_ms()
+		_is_new_pb = false
+		if new_min_guesses < pb.get("min_guesses", 9999):
+			pb["min_guesses"] = new_min_guesses
+			_is_new_pb = true
+		if new_min_time < pb.get("min_time_ms", 9999999):
+			pb["min_time_ms"] = new_min_time
+			_is_new_pb = true
+		if _is_new_pb:
+			SaveData.personal_bests[mode_key] = pb
+			SaveData.save()
+
+	# Weekly Challenge bonus
+	if _weekly_week_num > 0 and current_mode == GameMode.CLASSIC:
+		if did_win:
+			SaveData.weekly_last_week = _weekly_week_num
+			var bonus_xp := 200
+			var bonus_coins := 50
+			SaveData.add_xp(bonus_xp)
+			SaveData.add_coins(bonus_coins)
+			SaveData.save()
+			_show_toast("Weekly complete! +200 XP +50 coins 🏅")
+		_weekly_week_num = 0  # Reset regardless of win/loss
+
+	var newly_reached := SeasonManager.add_season_xp(xp_earned)
+	if not newly_reached.is_empty():
+		_show_toast("Milestone reached! Open Rewards to claim.")
+
 	_check_achievements_after_game(did_win)
 	if current_mode == GameMode.EASY and did_win:
 		SaveData.easy_wins += 1
 		SaveData.save()
 		if SaveData.easy_wins == 3:
 			_show_toast("Ready for Classic? Try it without the hints!")
-	AdManager.on_game_finished()
+	if not did_win:
+		AdManager.on_game_lost()
 
 	# Add share button to result if not already present
 	if not result_layer.has_node("Overlay/PopupCenter/PopupPanel/PopupMargin/PopupVBox/ResultButtons/ShareButton"):
@@ -1371,6 +1999,15 @@ func _finish_game(did_win: bool, message: String) -> void:
 		var result_buttons := result_layer.get_node("Overlay/PopupCenter/PopupPanel/PopupMargin/PopupVBox/ResultButtons")
 		result_buttons.add_child(share_btn)
 		result_buttons.move_child(share_btn, 0)
+
+	SaveData.record_puzzle_history(
+		GameMode.keys()[current_mode],
+		guess_history.size(),
+		did_win,
+		secret_sequence.duplicate(),
+		slots_needed,
+		_game_elapsed_ms()
+	)
 
 	_show_result_sheet(did_win, guess_history.size())
 	# TODO: update to pastel
@@ -1545,6 +2182,27 @@ func _apply_second_chance(sc_btn: Button, no_btn: Button, offer_lbl: Label) -> v
 	_refresh_guess_ui()
 	_update_palette_selection()
 	_update_header_text("SECOND CHANCE GRANTED — 3 BONUS ATTEMPTS.")
+
+func _on_combo_changed(count: int) -> void:
+	if _combo_label == null or not is_instance_valid(_combo_label):
+		var existing := $GameLayer/GameVBox/HeaderPanel.find_child("ComboLabel", false, false)
+		if existing != null:
+			_combo_label = existing as Label
+		else:
+			_combo_label = Label.new()
+			_combo_label.name = "ComboLabel"
+			_combo_label.add_theme_color_override("font_color", Color("#F472B6"))
+			_combo_label.add_theme_font_size_override("font_size", 24)
+			$GameLayer/GameVBox/HeaderPanel.add_child(_combo_label)
+	if count >= 2:
+		_combo_label.text = "🔥 %d" % count
+		_combo_label.visible = true
+		_combo_label.pivot_offset = _combo_label.get_minimum_size() / 2.0
+		var tw := create_tween()
+		tw.tween_property(_combo_label, "scale", Vector2(1.3, 1.3), 0.1)
+		tw.tween_property(_combo_label, "scale", Vector2(1.0, 1.0), 0.1)
+	else:
+		_combo_label.visible = false
 
 # =============================================================================
 # P5 — XP / Coin Doubler
@@ -1811,6 +2469,13 @@ func _open_mode_select() -> void:
 		{"mode": GameMode.HARD,     "name": "Hard",     "desc": "5–6 slots · 6 colors"},
 		{"mode": GameMode.ZEN,      "name": "Zen",      "desc": "Unlimited guesses"},
 		{"mode": GameMode.CAMPAIGN, "name": "Campaign", "desc": "100 levels"},
+		{"mode": GameMode.MYSTERY,    "name": "Mystery",    "desc": "Slots hidden · 12 guesses"},
+		{"mode": GameMode.TIME_TRIAL, "name": "Time Trial", "desc": "5 puzzles · fastest wins"},
+		{"mode": GameMode.DUO,        "name": "Duo",        "desc": "Two codes · shared guesses"},
+		{"mode": GameMode.SUDDEN_DEATH, "name": "Sudden Death",
+		 "desc": "0 exact = instant loss",
+		 "locked": SaveData.level < 10, "unlock_label": "Unlock at Level 10"},
+		{"mode": GameMode.SANDBOX, "name": "Sandbox", "desc": "Set your own secret · free hints"},
 	]
 
 	var grid := GridContainer.new()
@@ -1819,31 +2484,67 @@ func _open_mode_select() -> void:
 	grid.add_theme_constant_override("v_separation", 12)
 
 	for item in modes:
+		var is_locked: bool = item.get("locked", false)
 		var card := PanelContainer.new()
 		_style_panel_glass(card)
 		card.custom_minimum_size = Vector2(0, 80)
+		if is_locked:
+			card.modulate = Color(1.0, 1.0, 1.0, 0.45)
 		var card_vbox := VBoxContainer.new()
 		var name_lbl := Label.new()
 		name_lbl.text = item["name"]
 		name_lbl.add_theme_color_override("font_color", C_TEXT_PRIMARY)
 		name_lbl.add_theme_font_size_override("font_size", 20)
 		var desc_lbl := Label.new()
-		desc_lbl.text = item["desc"]
+		if is_locked:
+			desc_lbl.text = item.get("unlock_label", item["desc"])
+		else:
+			desc_lbl.text = item["desc"]
 		desc_lbl.add_theme_color_override("font_color", C_TEXT_SECONDARY)
 		desc_lbl.add_theme_font_size_override("font_size", 14)
 		card_vbox.add_child(name_lbl)
 		card_vbox.add_child(desc_lbl)
 		card.add_child(card_vbox)
-		var mode_val: int = item["mode"]
-		card.gui_input.connect(func(event: InputEvent) -> void:
-			if event is InputEventMouseButton and event.pressed:
-				_close_bottom_sheet(sheet.get_meta("overlay") as Control, sheet)
-				get_tree().create_timer(0.3).timeout.connect(
-					func() -> void: start_new_game(mode_val as GameMode), CONNECT_ONE_SHOT)
-		)
+		if not is_locked:
+			var mode_val: int = item["mode"]
+			card.gui_input.connect(func(event: InputEvent) -> void:
+				if event is InputEventMouseButton and event.pressed:
+					_close_bottom_sheet(sheet.get_meta("overlay") as Control, sheet)
+					get_tree().create_timer(0.3).timeout.connect(
+						func() -> void: start_new_game(mode_val as GameMode), CONNECT_ONE_SHOT)
+			)
 		grid.add_child(card)
 
 	vbox.add_child(grid)
+
+	# Weekly Challenge special card
+	var week_num_display: int = (Time.get_unix_time_from_system() / 604800) as int
+	var weekly_done: bool = SaveData.weekly_last_week == week_num_display
+	var weekly_panel := PanelContainer.new()
+	_style_panel_glass(weekly_panel)
+	weekly_panel.custom_minimum_size = Vector2(0, 80)
+	var weekly_inner := VBoxContainer.new()
+	weekly_inner.set("theme_override_constants/separation", 4)
+	var weekly_title := Label.new()
+	weekly_title.text = "Weekly #%d%s" % [week_num_display, " ✓" if weekly_done else ""]
+	weekly_title.add_theme_color_override("font_color", Color("#6B4E71"))
+	weekly_title.add_theme_font_size_override("font_size", 22)
+	weekly_inner.add_child(weekly_title)
+	var weekly_desc := Label.new()
+	weekly_desc.text = "5 slots · 8 guesses · +200 XP" if not weekly_done else "Come back next week!"
+	weekly_desc.add_theme_color_override("font_color", Color("#9B7EA6"))
+	weekly_desc.add_theme_font_size_override("font_size", 18)
+	weekly_inner.add_child(weekly_desc)
+	weekly_panel.add_child(weekly_inner)
+	if not weekly_done:
+		var overlay_ref := sheet.get_meta("overlay") as Control
+		weekly_panel.gui_input.connect(func(event: InputEvent) -> void:
+			if event is InputEventMouseButton and event.pressed:
+				_close_bottom_sheet(overlay_ref, sheet)
+				get_tree().create_timer(0.3).timeout.connect(
+					func(): _start_weekly_challenge(), CONNECT_ONE_SHOT)
+		)
+	vbox.add_child(weekly_panel)
 
 	# Custom puzzle link
 	var custom_link := Button.new()
@@ -1877,6 +2578,138 @@ func _close_mode_select() -> void:
 
 func _on_mode_selected(mode_int: int) -> void:
 	pass  # replaced by mode card gui_input in _open_mode_select
+
+# =============================================================================
+# Rewards Screen (Shop + Season tabs)
+# =============================================================================
+func _open_rewards_screen() -> void:
+	var sheet := _build_bottom_sheet("Rewards")
+	var vbox := sheet.get_node("Content") as VBoxContainer
+
+	# XP balance header
+	var xp_lbl := Label.new()
+	xp_lbl.text = "⚡ %d XP" % SaveData.total_xp_earned
+	xp_lbl.add_theme_color_override("font_color", Color("#F472B6"))
+	xp_lbl.add_theme_font_size_override("font_size", 28)
+	xp_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(xp_lbl)
+
+	# Tab bar
+	var tab_bar := HBoxContainer.new()
+	tab_bar.alignment = BoxContainer.ALIGNMENT_CENTER
+	tab_bar.add_theme_constant_override("separation", 12)
+	var shop_tab_btn := Button.new()
+	shop_tab_btn.text = "⚡ Shop"
+	shop_tab_btn.custom_minimum_size = Vector2(160, 52)
+	var season_tab_btn := Button.new()
+	season_tab_btn.text = "🏅 Season"
+	season_tab_btn.custom_minimum_size = Vector2(160, 52)
+	tab_bar.add_child(shop_tab_btn)
+	tab_bar.add_child(season_tab_btn)
+	vbox.add_child(tab_bar)
+
+	var content_area := ScrollContainer.new()
+	content_area.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	content_area.custom_minimum_size = Vector2(0, 400)
+	var content_vbox := VBoxContainer.new()
+	content_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content_area.add_child(content_vbox)
+	vbox.add_child(content_area)
+
+	# Default: show shop
+	_populate_shop_tab(content_vbox)
+	shop_tab_btn.pressed.connect(func():
+		_clear_children(content_vbox)
+		_populate_shop_tab(content_vbox)
+	)
+	season_tab_btn.pressed.connect(func():
+		_clear_children(content_vbox)
+		_populate_season_tab(content_vbox)
+	)
+
+func _populate_shop_tab(container: VBoxContainer) -> void:
+	for item in ShopManager.CATALOG:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		var name_lbl := Label.new()
+		name_lbl.text = item.name
+		name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		name_lbl.add_theme_color_override("font_color", Color("#6B4E71"))
+		name_lbl.add_theme_font_size_override("font_size", 22)
+		name_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		var cost_str: String
+		if item.cost_type == "xp":
+			cost_str = "%d ⚡" % item.cost
+		else:
+			cost_str = "%d 🪙" % item.cost
+		var buy_btn := Button.new()
+		buy_btn.custom_minimum_size = Vector2(110, 44)
+		if ShopManager.is_owned(item.id):
+			buy_btn.text = "Owned ✓"
+			buy_btn.disabled = true
+		else:
+			buy_btn.text = cost_str
+			var item_id: String = item.id
+			buy_btn.pressed.connect(func():
+				if ShopManager.purchase(item_id):
+					_show_toast("Purchased!")
+					buy_btn.text = "Owned ✓"
+					buy_btn.disabled = true
+				else:
+					_show_toast("Not enough XP")
+			)
+		row.add_child(name_lbl)
+		row.add_child(buy_btn)
+		container.add_child(row)
+
+func _populate_season_tab(container: VBoxContainer) -> void:
+	var season_name_lbl := Label.new()
+	season_name_lbl.text = SeasonManager.get_season_name()
+	season_name_lbl.add_theme_color_override("font_color", Color("#6B4E71"))
+	season_name_lbl.add_theme_font_size_override("font_size", 26)
+	season_name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	container.add_child(season_name_lbl)
+
+	var milestones := SeasonManager.get_milestones()
+	var progress_lbl := Label.new()
+	progress_lbl.text = "Season XP: %d / %d" % [SaveData.season_xp, milestones.back()]
+	progress_lbl.add_theme_color_override("font_color", Color("#9B7EA6"))
+	progress_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	container.add_child(progress_lbl)
+
+	for i in range(milestones.size()):
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		var milestone_lbl := Label.new()
+		milestone_lbl.text = "Milestone %d — %d XP" % [i + 1, milestones[i]]
+		milestone_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		milestone_lbl.add_theme_color_override("font_color", Color("#6B4E71"))
+		milestone_lbl.add_theme_font_size_override("font_size", 22)
+		var claim_btn := Button.new()
+		claim_btn.custom_minimum_size = Vector2(100, 44)
+		if SaveData.season_claimed[i]:
+			claim_btn.text = "✓ Claimed"
+			claim_btn.disabled = true
+		elif SaveData.season_xp >= milestones[i]:
+			claim_btn.text = "Claim!"
+			var idx := i
+			claim_btn.pressed.connect(func():
+				var reward := SeasonManager.claim_milestone(idx)
+				if not reward.is_empty():
+					_show_toast("Reward claimed!")
+					_clear_children(container)
+					_populate_season_tab(container)
+			)
+		else:
+			claim_btn.text = "Locked 🔒"
+			claim_btn.disabled = true
+		row.add_child(milestone_lbl)
+		row.add_child(claim_btn)
+		container.add_child(row)
+
+func _clear_children(node: Node) -> void:
+	for child in node.get_children():
+		child.queue_free()
 
 # =============================================================================
 # Stats Screen overlay
@@ -2050,11 +2883,113 @@ func _build_stats_screen() -> void:
 
 	vbox.add_child(HSeparator.new())
 
+	_build_deep_dive_section(vbox)
+
 	var close_btn := Button.new()
 	close_btn.text = "CLOSE"
 	close_btn.custom_minimum_size = Vector2(0, 64)
 	close_btn.pressed.connect(_close_stats_screen)
 	vbox.add_child(close_btn)
+
+func _build_deep_dive_section(container: VBoxContainer) -> void:
+	var deep_dive_content := VBoxContainer.new()
+	deep_dive_content.visible = false
+
+	var deep_dive_header := Button.new()
+	deep_dive_header.text = "Deep Dive ▼"
+	deep_dive_header.pressed.connect(func():
+		deep_dive_content.visible = not deep_dive_content.visible
+		deep_dive_header.text = "Deep Dive ▲" if deep_dive_content.visible else "Deep Dive ▼"
+	)
+	container.add_child(deep_dive_header)
+	container.add_child(deep_dive_content)
+
+	# Total time played
+	var total_ms: int = 0
+	for entry in SaveData.puzzle_history:
+		total_ms += entry.get("time_ms", 0)
+	var total_sec := total_ms / 1000
+	var time_lbl := Label.new()
+	time_lbl.text = "Total time played: %dm %ds" % [total_sec / 60, total_sec % 60]
+	deep_dive_content.add_child(time_lbl)
+
+	# Average guesses per mode (wins only)
+	var mode_stats: Dictionary = {}
+	for entry in SaveData.puzzle_history:
+		if entry.get("won", false):
+			var m: String = entry.get("mode", "CLASSIC")
+			if not mode_stats.has(m):
+				mode_stats[m] = {"total": 0, "count": 0, "best": 9999}
+			mode_stats[m]["total"] += entry.get("guesses", 0)
+			mode_stats[m]["count"] += 1
+			mode_stats[m]["best"] = mini(mode_stats[m]["best"], entry.get("guesses", 9999))
+	for mode_key in mode_stats:
+		var stats: Dictionary = mode_stats[mode_key]
+		var avg: float = float(stats["total"]) / float(stats["count"]) if stats["count"] > 0 else 0.0
+		var avg_lbl := Label.new()
+		avg_lbl.text = "%s: avg %.1f guesses, best %d" % [mode_key.capitalize(), avg, stats["best"]]
+		deep_dive_content.add_child(avg_lbl)
+
+	# Best day of week
+	var day_wins: Array = [0, 0, 0, 0, 0, 0, 0]
+	for entry in SaveData.puzzle_history:
+		if entry.get("won", false) and entry.has("date"):
+			var dt := Time.get_datetime_dict_from_datetime_string(entry["date"] + "T00:00:00", false)
+			var dow: int = dt.get("weekday", 0)
+			day_wins[dow % 7] += 1
+	if day_wins.max() > 0:
+		var best_day_idx := day_wins.find(day_wins.max())
+		const DAY_NAMES := ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+		var day_lbl := Label.new()
+		day_lbl.text = "Best day: %s (%d wins)" % [DAY_NAMES[best_day_idx], day_wins[best_day_idx]]
+		deep_dive_content.add_child(day_lbl)
+
+	var archive_btn := Button.new()
+	archive_btn.text = "Archive"
+	archive_btn.pressed.connect(_open_archive_screen)
+	container.add_child(archive_btn)
+
+func _open_archive_screen() -> void:
+	var sheet := _build_bottom_sheet("Puzzle Archive")
+	var content := sheet.get_node("Content") as VBoxContainer
+
+	if SaveData.puzzle_history.is_empty():
+		var empty_lbl := Label.new()
+		empty_lbl.text = "No games played yet."
+		empty_lbl.add_theme_color_override("font_color", C_TEXT_SECONDARY)
+		content.add_child(empty_lbl)
+		return
+
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var vbox := VBoxContainer.new()
+	scroll.add_child(vbox)
+	content.add_child(scroll)
+
+	# Group by date
+	var by_date: Dictionary = {}
+	for entry in SaveData.puzzle_history:
+		var d: String = entry.get("date", "Unknown")
+		if not by_date.has(d):
+			by_date[d] = []
+		by_date[d].append(entry)
+
+	var sorted_dates: Array = by_date.keys()
+	sorted_dates.sort()
+	sorted_dates.reverse()
+	for date in sorted_dates:
+		var date_lbl := Label.new()
+		date_lbl.text = date
+		date_lbl.add_theme_color_override("font_color", Color("#6B4E71"))
+		vbox.add_child(date_lbl)
+		for entry in by_date[date]:
+			var mode_str: String = entry.get("mode", "?")
+			var guesses: int = entry.get("guesses", 0)
+			var won: bool = entry.get("won", false)
+			var entry_lbl := Label.new()
+			entry_lbl.text = "  %s %s · %d guesses" % [mode_str, "✓" if won else "✗", guesses]
+			entry_lbl.add_theme_color_override("font_color", Color("#9B7BAB"))
+			vbox.add_child(entry_lbl)
 
 func _make_stat_tile(label: String, value: String, value_color: Color) -> Control:
 	var panel := PanelContainer.new()
@@ -2425,6 +3360,147 @@ func _close_bottom_sheet(overlay: Control, sheet: Control) -> void:
 		if is_instance_valid(sheet):
 			sheet.queue_free()
 	)
+
+# =============================================================================
+# Game timer
+# =============================================================================
+func _game_elapsed_ms() -> int:
+	return Time.get_ticks_msec() - _game_start_ms
+
+# =============================================================================
+# Resume Game
+# =============================================================================
+func _show_resume_prompt() -> void:
+	var sheet := _build_bottom_sheet("Resume Game?")
+	var vbox := sheet.get_node("Content") as VBoxContainer
+	var mode_name := GameMode.keys()[SaveData.resume_mode] if SaveData.resume_mode >= 0 else "Unknown"
+	var info_lbl := Label.new()
+	info_lbl.text = "%s — %d guesses in" % [mode_name.capitalize(), SaveData.resume_history.size()]
+	info_lbl.add_theme_color_override("font_color", C_TEXT_SECONDARY)
+	info_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(info_lbl)
+	var overlay := sheet.get_parent().get_child(sheet.get_index() - 1)
+	var resume_btn := Button.new()
+	resume_btn.text = "Resume"
+	resume_btn.custom_minimum_size = Vector2(0, 52)
+	resume_btn.pressed.connect(func() -> void:
+		_close_bottom_sheet(overlay, sheet)
+		get_tree().create_timer(0.3).timeout.connect(func() -> void: _resume_game(), CONNECT_ONE_SHOT)
+	)
+	var new_btn := Button.new()
+	new_btn.text = "New Game"
+	new_btn.custom_minimum_size = Vector2(0, 52)
+	new_btn.pressed.connect(func() -> void:
+		SaveData.resume_secret = []
+		SaveData.save()
+		_close_bottom_sheet(overlay, sheet)
+	)
+	vbox.add_child(resume_btn)
+	vbox.add_child(new_btn)
+
+func _resume_game() -> void:
+	current_mode    = SaveData.resume_mode as GameMode
+	secret_sequence = SaveData.resume_secret.duplicate()
+	guess_history   = SaveData.resume_history.duplicate(true)
+	slots_needed    = secret_sequence.size()
+	_active_row_index = guess_history.size()
+	match current_mode:
+		GameMode.BLITZ:
+			MAX_GUESSES = MAX_GUESSES_BLITZ
+		GameMode.ZEN:
+			MAX_GUESSES = MAX_GUESSES_ZEN
+		GameMode.HARD:
+			MAX_GUESSES = MAX_GUESSES_HARD
+		_:
+			MAX_GUESSES = MAX_GUESSES_CLASSIC
+	_current_campaign_level = SaveData.resume_campaign_level
+	round_active    = true
+	_board_built    = false
+	_board_rows.clear()
+	_tracker_absent.clear()
+	_tracker_present.clear()
+	_hard_locked_slots.clear()
+	selected_color_index      = -1
+	_second_chance_used       = false
+	_xp_doubler_active        = false
+	_blitz_timer_active       = false
+	_hint_ad_pending          = false
+	_game_start_ms  = Time.get_ticks_msec()
+	_is_new_pb      = false
+	_show_game_screen()
+	_build_palette(6 if current_mode == GameMode.HARD else 5)
+	ComboManager.start_round()
+	current_guess.clear()
+	current_guess.resize(slots_needed)
+	for i in range(slots_needed):
+		current_guess[i] = -1
+	if has_node("GameLayer/GameVBox/BoardVBox"):
+		$GameLayer/GameVBox/BoardVBox.queue_free()
+	await get_tree().process_frame
+	if not is_instance_valid(self):
+		return
+	_build_elimination_tracker()
+	_build_wordle_board()
+	_update_palette_selection()
+	_refresh_guess_ui()
+	_update_header_text("RESUMED — SEQUENCE: %d NODES  ·  %d GUESSES USED" % [slots_needed, guess_history.size()])
+
+func _show_time_trial_result() -> void:
+	var score := _time_trial_puzzles_completed * 1000 - (_time_trial_total_time_ms / 1000)
+	var sheet := _build_bottom_sheet("Time Trial Complete")
+	var vbox := sheet.get_node("Content") as VBoxContainer
+
+	var score_lbl := Label.new()
+	score_lbl.text = "Score: %d" % score
+	score_lbl.add_theme_font_size_override("font_size", 36)
+	score_lbl.add_theme_color_override("font_color", Color("#F472B6"))
+	score_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(score_lbl)
+
+	var solved_lbl := Label.new()
+	solved_lbl.text = "Solved: %d / %d" % [_time_trial_puzzles_completed, TIME_TRIAL_TOTAL_PUZZLES]
+	solved_lbl.add_theme_color_override("font_color", Color("#6B4E71"))
+	solved_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(solved_lbl)
+
+	for i in range(_time_trial_puzzle_times.size()):
+		var t_lbl := Label.new()
+		t_lbl.text = "Puzzle %d: %ds" % [i + 1, _time_trial_puzzle_times[i] / 1000]
+		t_lbl.add_theme_color_override("font_color", Color("#9B7EA6"))
+		vbox.add_child(t_lbl)
+
+	# Personal best check
+	var pb: Dictionary = SaveData.personal_bests.get("TIME_TRIAL", {})
+	if score > pb.get("best_score", -999999):
+		SaveData.personal_bests["TIME_TRIAL"] = {"best_score": score}
+		SaveData.save()
+		var pb_lbl := Label.new()
+		pb_lbl.text = "🏅 New Personal Best!"
+		pb_lbl.add_theme_color_override("font_color", Color("#F472B6"))
+		pb_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		vbox.add_child(pb_lbl)
+
+	# Play Again button
+	var overlay := sheet.get_meta("overlay") as Control
+	var play_again := Button.new()
+	play_again.text = "Play Again"
+	play_again.custom_minimum_size = Vector2(0, 64)
+	play_again.pressed.connect(func():
+		_close_bottom_sheet(overlay, sheet)
+		get_tree().create_timer(0.3).timeout.connect(
+			func(): start_new_game(GameMode.TIME_TRIAL), CONNECT_ONE_SHOT)
+	)
+	vbox.add_child(play_again)
+
+	var menu_btn := Button.new()
+	menu_btn.text = "Menu"
+	menu_btn.custom_minimum_size = Vector2(0, 64)
+	menu_btn.pressed.connect(func():
+		_close_bottom_sheet(overlay, sheet)
+		get_tree().create_timer(0.3).timeout.connect(
+			func(): _show_menu(), CONNECT_ONE_SHOT)
+	)
+	vbox.add_child(menu_btn)
 
 func _show_result_sheet(did_win: bool, guesses_used: int) -> void:
 	_result_sheet_open = true
