@@ -392,6 +392,15 @@ func _show_menu() -> void:
 	round_active = false
 	AdManager.show_banner()
 
+func _show_game_screen() -> void:
+	menu_layer.visible           = false
+	game_layer.visible           = true
+	result_layer.visible         = false
+	_result_sheet_open           = false
+	hamburger_button.visible     = true
+	hamburger_menu_layer.visible = false
+	AdManager.hide_banner()
+
 func start_new_game(mode: GameMode = GameMode.CLASSIC, campaign_level: int = 1) -> void:
 	_game_start_ms            = Time.get_ticks_msec()
 	_is_new_pb                = false
@@ -3239,13 +3248,7 @@ func _resume_game() -> void:
 	_hint_ad_pending          = false
 	_game_start_ms  = Time.get_ticks_msec()
 	_is_new_pb      = false
-	menu_layer.visible           = false
-	game_layer.visible           = true
-	result_layer.visible         = false
-	_result_sheet_open           = false
-	hamburger_button.visible     = true
-	hamburger_menu_layer.visible = false
-	AdManager.hide_banner()
+	_show_game_screen()
 	_build_palette(6 if current_mode == GameMode.HARD else 5)
 	ComboManager.start_round()
 	current_guess.clear()
