@@ -505,6 +505,10 @@ func start_google_sign_in() -> void:
 		return
 	await link_google(token)
 
+	## Trigger the Sign in with Apple flow (iOS only). Full implementation in Task 10.
+	func start_apple_sign_in() -> void:
+		account_link_failed.emit("Apple Sign-In not yet available")
+
 ## Client-side percentile calculation.
 func _compute_percentile(player_guesses: int, total_players: int, top_100: Array) -> int:
 	if total_players == 0:
