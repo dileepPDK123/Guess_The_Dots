@@ -7,8 +7,8 @@ signal slot_pressed_for_assign(slot_index: int)
 
 var slot_index: int = 0
 
-const C_EMPTY_BORDER := Color("#E9D5F1")
-const C_EMPTY_BG     := Color(1, 1, 1, 0.55)
+const C_EMPTY_BORDER := Color(0.68, 0.56, 0.90, 0.40)
+const C_EMPTY_BG     := Color(0.16, 0.10, 0.28, 0.55)
 
 var _is_filled: bool = false
 var _filled_color: Color = Color.WHITE

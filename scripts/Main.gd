@@ -46,22 +46,23 @@ const SETTINGS_PATH       := "user://settings.cfg"
 # Active per-game values (set by start_new_game based on mode)
 var MAX_GUESSES: int = 10
 
-# ── Pastel theme ─────────────────────────────────────────────────────────────
-const C_BG_TOP         := Color("#FFF1F9")
-const C_BG_MID         := Color("#FFF8F0")
-const C_BG_BOT         := Color("#F0FFF8")
-const C_PANEL          := Color(1.0, 1.0, 1.0, 0.75)
-const C_PANEL_BORDER   := Color("#FFD6E7")
-const C_CTA_FROM       := Color("#F472B6")
-const C_CTA_TO         := Color("#A78BFA")
-const C_TEXT_PRIMARY   := Color("#6B4E71")
-const C_TEXT_SECONDARY := Color("#C084B8")
-const C_TEXT_ACTION    := Color("#9B7BAB")
+# ── Dark jewel-tone theme ────────────────────────────────────────────────────
+const C_BG_TOP         := Color("#0F0923")   # deep midnight purple
+const C_BG_MID         := Color("#1A1235")
+const C_BG_BOT         := Color("#2A1A4F")
+const C_PANEL          := Color(0.14, 0.09, 0.28, 0.85)   # semi-trans purple
+const C_PANEL_BORDER   := Color(0.957, 0.447, 0.714, 0.25)  # soft magenta glow
+const C_CTA_FROM       := Color("#F472B6")    # vivid pink
+const C_CTA_TO         := Color("#A78BFA")    # vivid violet
+const C_TEXT_PRIMARY   := Color("#F4E5FF")    # soft cream
+const C_TEXT_SECONDARY := Color("#A68FC9")    # dusty lavender
+const C_TEXT_ACTION    := Color("#F4E5FF")
 const C_PIP_EXACT      := Color("#22C55E")
 const C_PIP_MISPLACE   := Color("#FACC15")
-const C_PIP_EMPTY      := Color(0.784, 0.706, 0.863, 0.25)
-const C_ACTIVE_ROW     := Color(0.957, 0.447, 0.714, 0.07)
-const C_ACTIVE_BORDER  := Color(0.957, 0.447, 0.714, 0.4)
+const C_PIP_EMPTY      := Color(0.6, 0.55, 0.75, 0.25)
+const C_ACTIVE_ROW     := Color(0.957, 0.447, 0.714, 0.10)
+const C_ACTIVE_BORDER  := Color(0.957, 0.447, 0.714, 0.55)
+const C_ROW_HIGHLIGHT  := Color(0.957, 0.447, 0.714, 0.08)
 
 const PALETTE := [
 	{"name": "Red",    "color": Color("#ef4444")},
@@ -257,9 +258,12 @@ func _ready() -> void:
 	_build_palette()
 	_build_mode_select()
 
+	# Inject the stats-chip strip + the blended menu list container
+	_inject_home_menu_extras()
+
 	# STATISTICS button — injected into menu VBox after How to Play
 	var stats_btn := Button.new()
-	stats_btn.text = "Statistics"
+	stats_btn.text = "📊   Statistics"
 	stats_btn.pressed.connect(_open_stats_screen)
 	_style_menu_button(stats_btn, false)
 	var menu_vbox := get_node("MenuLayer/MenuPanel/MenuMargin/MenuVBox")
@@ -267,7 +271,7 @@ func _ready() -> void:
 	menu_vbox.move_child(stats_btn, how_to_play_menu_button.get_index() + 1)
 
 	var rewards_btn := Button.new()
-	rewards_btn.text = "Rewards"
+	rewards_btn.text = "🎁   Rewards"
 	rewards_btn.pressed.connect(_open_rewards_screen)
 	_style_menu_button(rewards_btn, false)
 	menu_vbox.add_child(rewards_btn)
@@ -422,37 +426,113 @@ func _style_secondary_button(btn: Button) -> void:
 	btn.add_theme_color_override("font_color", C_TEXT_ACTION)
 	btn.add_theme_font_size_override("font_size", 16)
 
+func _inject_home_menu_extras() -> void:
+	# Adds a "stats chip" row + a soft divider above the menu list.
+	# Called once from _ready. Idempotent via named-node check.
+	var menu_vbox := get_node("MenuLayer/MenuPanel/MenuMargin/MenuVBox")
+	if menu_vbox == null or menu_vbox.has_node("StatsChips"):
+		return
+
+	# Stats chips row: Level · Coins · Daily streak
+	var chips_row := HBoxContainer.new()
+	chips_row.name = "StatsChips"
+	chips_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	chips_row.add_theme_constant_override("separation", 10)
+	chips_row.add_child(_build_chip("Lv %d" % SaveData.level, Color("#A78BFA")))
+	chips_row.add_child(_build_chip("🪙  %d" % SaveData.coins, Color("#F472B6")))
+	chips_row.add_child(_build_chip("🔥  %d" % SaveData.daily_streak, Color("#FBBF24")))
+	menu_vbox.add_child(chips_row)
+	# Move chips right below SubtitleLabel (index 1) — so order: Title, Subtitle, Chips, Play, ...
+	var subtitle := menu_vbox.get_node_or_null("SubtitleLabel") as Control
+	var target := subtitle.get_index() + 1 if subtitle != null else 2
+	menu_vbox.move_child(chips_row, target)
+
+	# Soft divider above the list (between PLAY and secondary rows)
+	var divider := HSeparator.new()
+	divider.name = "MenuDivider"
+	var div_sb := StyleBoxFlat.new()
+	div_sb.bg_color = Color(0.65, 0.56, 0.85, 0.18)
+	div_sb.content_margin_top = 1
+	divider.add_theme_stylebox_override("separator", div_sb)
+	divider.add_theme_constant_override("separation", 14)
+	menu_vbox.add_child(divider)
+	# Place it just after the NewGameButton (PLAY) — so it sits above How to Play
+	var play_idx := new_game_button.get_index()
+	menu_vbox.move_child(divider, play_idx + 1)
+
+func _build_chip(text: String, accent: Color) -> Control:
+	var chip := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(accent.r, accent.g, accent.b, 0.12)
+	sb.border_color = Color(accent.r, accent.g, accent.b, 0.45)
+	sb.border_width_left = 1
+	sb.border_width_right = 1
+	sb.border_width_top = 1
+	sb.border_width_bottom = 1
+	sb.corner_radius_top_left = 999
+	sb.corner_radius_top_right = 999
+	sb.corner_radius_bottom_left = 999
+	sb.corner_radius_bottom_right = 999
+	sb.content_margin_left = 14
+	sb.content_margin_right = 14
+	sb.content_margin_top = 6
+	sb.content_margin_bottom = 6
+	chip.add_theme_stylebox_override("panel", sb)
+	var lbl := Label.new()
+	lbl.text = text
+	lbl.add_theme_color_override("font_color", accent.lightened(0.25))
+	lbl.add_theme_font_size_override("font_size", 14)
+	chip.add_child(lbl)
+	return chip
+
 func _style_menu_button(btn: Button, primary: bool) -> void:
 	if btn == null:
 		return
-	var sb := StyleBoxFlat.new()
 	if primary:
+		# Hero PLAY button — big pink pill with glow
+		var sb := StyleBoxFlat.new()
 		sb.bg_color = C_CTA_FROM
-		sb.shadow_color = Color(0.957, 0.447, 0.714, 0.35)
-		sb.shadow_size = 16
-	else:
-		sb.bg_color = Color(1, 1, 1, 0.9)
-		sb.border_color = C_PANEL_BORDER
-		sb.border_width_left = 1
-		sb.border_width_right = 1
-		sb.border_width_top = 1
-		sb.border_width_bottom = 1
-	sb.corner_radius_top_left = 18
-	sb.corner_radius_top_right = 18
-	sb.corner_radius_bottom_left = 18
-	sb.corner_radius_bottom_right = 18
-	sb.content_margin_left = 20
-	sb.content_margin_right = 20
-	sb.content_margin_top = 16
-	sb.content_margin_bottom = 16
-	var hover := sb.duplicate() as StyleBoxFlat
-	hover.bg_color = sb.bg_color.lightened(0.06) if primary else Color(1, 0.95, 0.97, 1.0)
-	btn.add_theme_stylebox_override("normal", sb)
-	btn.add_theme_stylebox_override("hover", hover)
-	btn.add_theme_stylebox_override("pressed", hover)
-	btn.add_theme_color_override("font_color", Color.WHITE if primary else C_TEXT_ACTION)
-	btn.add_theme_font_size_override("font_size", 22 if primary else 18)
-	btn.custom_minimum_size = Vector2(0, 64 if primary else 56)
+		sb.shadow_color = Color(0.957, 0.447, 0.714, 0.45)
+		sb.shadow_size = 18
+		sb.corner_radius_top_left = 22
+		sb.corner_radius_top_right = 22
+		sb.corner_radius_bottom_left = 22
+		sb.corner_radius_bottom_right = 22
+		sb.content_margin_left = 20
+		sb.content_margin_right = 20
+		sb.content_margin_top = 20
+		sb.content_margin_bottom = 20
+		var hover := sb.duplicate() as StyleBoxFlat
+		hover.bg_color = C_CTA_FROM.lightened(0.08)
+		var pressed := sb.duplicate() as StyleBoxFlat
+		pressed.bg_color = C_CTA_FROM.darkened(0.08)
+		btn.add_theme_stylebox_override("normal", sb)
+		btn.add_theme_stylebox_override("hover", hover)
+		btn.add_theme_stylebox_override("pressed", pressed)
+		btn.add_theme_color_override("font_color", Color.WHITE)
+		btn.add_theme_font_size_override("font_size", 30)
+		btn.custom_minimum_size = Vector2(0, 84)
+		return
+	# Blended list row — transparent, left-aligned, subtle divider on hover
+	var sb_row := StyleBoxFlat.new()
+	sb_row.bg_color = Color(1, 1, 1, 0)
+	sb_row.border_color = Color(0.65, 0.56, 0.85, 0.14)
+	sb_row.border_width_bottom = 1
+	sb_row.content_margin_left = 4
+	sb_row.content_margin_right = 4
+	sb_row.content_margin_top = 16
+	sb_row.content_margin_bottom = 16
+	var sb_hover := sb_row.duplicate() as StyleBoxFlat
+	sb_hover.bg_color = Color(1, 1, 1, 0.04)
+	btn.add_theme_stylebox_override("normal", sb_row)
+	btn.add_theme_stylebox_override("hover", sb_hover)
+	btn.add_theme_stylebox_override("pressed", sb_hover)
+	btn.add_theme_stylebox_override("focus", sb_row)
+	btn.add_theme_color_override("font_color", C_TEXT_PRIMARY)
+	btn.add_theme_color_override("font_hover_color", Color.WHITE)
+	btn.add_theme_font_size_override("font_size", 18)
+	btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	btn.custom_minimum_size = Vector2(0, 52)
 
 func _style_panel_glass(panel: PanelContainer) -> void:
 	if panel == null:
@@ -525,9 +605,9 @@ func _apply_label_vocabulary() -> void:
 	clear_button.text  = "Clear"
 	undo_button.text   = "Undo"
 	hint_button.text   = "💡 Hint"
-	new_game_button.text         = "Play"
-	how_to_play_menu_button.text = "How to Play"
-	quit_button.text             = "Quit"
+	new_game_button.text         = "▶  PLAY"
+	how_to_play_menu_button.text = "🎯   How to Play"
+	quit_button.text             = "🚪   Quit"
 	header_title_label.text      = "Guess the Dots"
 
 func _find_label(node_path: String) -> Label:
@@ -1534,11 +1614,13 @@ func _update_pips(pip_container: HBoxContainer, exact: int, misplaced: int) -> v
 		idx += 1
 
 func _flip_row_reveal(row: Dictionary, item: Dictionary) -> void:
+	# Snappy pop-in: each dot scales from 0 → 1.15 → 1.0 with a small stagger.
+	# Much juicier than the old 90° rotate-flip.
 	var slots: Array = row.slots
 	var guess: Array = item["values"]
 	var exact: int = int(item["exact"])
 	var misplaced: int = int(item["misplaced"])
-	var stagger_sec := 0.08
+	var stagger_sec := 0.06
 
 	for s in range(slots.size()):
 		var slot := slots[s] as Control
@@ -1546,29 +1628,47 @@ func _flip_row_reveal(row: Dictionary, item: Dictionary) -> void:
 		if ci < 0 or ci >= PALETTE.size():
 			ci = 0
 		var dot_color := PALETTE[ci]["color"] as Color
-
-		# Phase 1: rotate 0 → 90 degrees
-		var tw1 := create_tween()
-		tw1.tween_property(slot, "rotation_degrees", 90.0, 0.1).set_trans(Tween.TRANS_SINE)
-		await tw1.finished
-		if not is_instance_valid(slot):
-			return
-		_set_slot_filled(slot, dot_color)
-
-		# Phase 2: rotate 90 → 0 degrees
-		var tw2 := create_tween()
-		tw2.tween_property(slot, "rotation_degrees", 0.0, 0.1).set_trans(Tween.TRANS_SINE)
-		await tw2.finished
-		if not is_instance_valid(slot):
-			return
-
+		if slot is SlotButton:
+			(slot as SlotButton).set_filled_visual(dot_color, "")
+		else:
+			_set_slot_filled(slot, dot_color)
+		slot.pivot_offset = slot.size * 0.5
+		slot.scale = Vector2(0.2, 0.2)
+		var tw := create_tween()
+		tw.tween_property(slot, "scale", Vector2(1.15, 1.15), 0.12).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tw.tween_property(slot, "scale", Vector2(1.0, 1.0), 0.08).set_trans(Tween.TRANS_SINE)
 		if s < slots.size() - 1:
 			await get_tree().create_timer(stagger_sec).timeout
 			if not is_inside_tree():
 				return
+		else:
+			await tw.finished
+			if not is_instance_valid(slot):
+				return
 
-	# Update pips after all flips
-	_update_pips(row.pips, exact, misplaced)
+	# Pip sweep: light them one by one with a micro-pop
+	var pip_children: Array = row.pips.get_children()
+	var idx := 0
+	for _e in range(exact):
+		if idx < pip_children.size():
+			await _pop_pip(pip_children[idx] as Control, C_PIP_EXACT)
+			idx += 1
+	for _m in range(misplaced):
+		if idx < pip_children.size():
+			await _pop_pip(pip_children[idx] as Control, C_PIP_MISPLACE)
+			idx += 1
+	while idx < pip_children.size():
+		_set_pip_color(pip_children[idx] as Control, C_PIP_EMPTY)
+		idx += 1
+
+func _pop_pip(pip: Control, color: Color) -> void:
+	_set_pip_color(pip, color)
+	pip.pivot_offset = pip.size * 0.5
+	pip.scale = Vector2(0.1, 0.1)
+	var tw := create_tween()
+	tw.tween_property(pip, "scale", Vector2(1.3, 1.3), 0.08).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(pip, "scale", Vector2(1.0, 1.0), 0.06).set_trans(Tween.TRANS_SINE)
+	await get_tree().create_timer(0.05).timeout
 
 # =============================================================================
 # UI refresh
@@ -2731,130 +2831,227 @@ func _make_mode_card(data: Dictionary, open_campaign: bool = false) -> Control:
 	return panel
 
 func _open_mode_select() -> void:
-	var sheet := _build_bottom_sheet("Choose Mode")
+	var sheet := _build_bottom_sheet("Pick Your Puzzle")
 	var vbox := sheet.get_node("Content") as VBoxContainer
+	vbox.add_theme_constant_override("separation", 14)
+	var overlay_ref := sheet.get_meta("overlay") as Control
 
-	# Daily Challenge card — pinned at top, locked after completion
+	# ── Daily hero card — vivid, gradient-feel, with streak flame ────────────
 	var daily_done: bool = SaveData.is_daily_done_today()
 	var daily_num := DailyChallenge.get_today_number()
-	var daily_panel := PanelContainer.new()
-	_style_panel_glass(daily_panel)
-	daily_panel.custom_minimum_size = Vector2(0, 80)
-	if daily_done:
-		daily_panel.modulate = Color(1.0, 1.0, 1.0, 0.45)
-	var daily_inner := VBoxContainer.new()
-	daily_inner.set("theme_override_constants/separation", 4)
-	var daily_title := Label.new()
-	daily_title.text = "Daily #%d%s" % [daily_num, " ✓" if daily_done else ""]
-	daily_title.add_theme_color_override("font_color", Color("#22c55e"))
-	daily_title.add_theme_font_size_override("font_size", 22)
-	daily_inner.add_child(daily_title)
-	var daily_desc := Label.new()
-	daily_desc.text = "4 slots · 8 guesses · +75 XP" if not daily_done else "Come back tomorrow!"
-	daily_desc.add_theme_color_override("font_color", C_TEXT_SECONDARY)
-	daily_desc.add_theme_font_size_override("font_size", 18)
-	daily_inner.add_child(daily_desc)
-	daily_panel.add_child(daily_inner)
+	var daily_streak: int = SaveData.daily_streak
+	var daily_hero := _make_hero_card(
+		"🔥",
+		"Daily Puzzle #%d" % daily_num,
+		("Streak: %d — keep it going!" % daily_streak) if daily_streak > 0 else "Same puzzle worldwide. Play once a day.",
+		"Play Today  →",
+		Color("#F472B6"),
+		Color("#A78BFA"),
+		daily_done,
+		"✓ Done — come back tomorrow"
+	)
 	if not daily_done:
-		var overlay_ref := sheet.get_meta("overlay") as Control
-		daily_panel.gui_input.connect(func(event: InputEvent) -> void:
+		daily_hero.gui_input.connect(func(event: InputEvent) -> void:
 			if event is InputEventMouseButton and event.pressed:
 				_close_bottom_sheet(overlay_ref, sheet)
 				get_tree().create_timer(0.3).timeout.connect(
 					func() -> void: start_new_game(GameMode.DAILY), CONNECT_ONE_SHOT)
 		)
-	vbox.add_child(daily_panel)
+	vbox.add_child(daily_hero)
 
-	var modes := [
-		{"mode": GameMode.CLASSIC,  "name": "Classic",  "desc": "3–5 slots · 10 guesses"},
-		{"mode": GameMode.EASY,     "name": "Easy",     "desc": "3–4 slots · color hints"},
-		{"mode": GameMode.BLITZ,    "name": "Blitz",    "desc": "5 slots · 90s timer"},
-		{"mode": GameMode.HARD,     "name": "Hard",     "desc": "5–6 slots · 6 colors"},
-		{"mode": GameMode.ZEN,      "name": "Zen",      "desc": "Unlimited guesses"},
-		{"mode": GameMode.CAMPAIGN, "name": "Campaign", "desc": "100 levels"},
-		{"mode": GameMode.MYSTERY,    "name": "Mystery",    "desc": "Slots hidden · 12 guesses"},
-		{"mode": GameMode.TIME_TRIAL, "name": "Time Trial", "desc": "5 puzzles · fastest wins"},
-		{"mode": GameMode.DUO,        "name": "Duo",        "desc": "Two codes · shared guesses"},
-		{"mode": GameMode.SUDDEN_DEATH, "name": "Sudden Death",
-		 "desc": "0 exact = instant loss",
-		 "locked": SaveData.level < 10, "unlock_label": "Unlock at Level 10"},
-		{"mode": GameMode.SANDBOX, "name": "Sandbox", "desc": "Set your own secret · free hints"},
-	]
-
-	var grid := GridContainer.new()
-	grid.columns = 2
-	grid.add_theme_constant_override("h_separation", 12)
-	grid.add_theme_constant_override("v_separation", 12)
-
-	for item in modes:
-		var is_locked: bool = item.get("locked", false)
-		var card := PanelContainer.new()
-		_style_panel_glass(card)
-		card.custom_minimum_size = Vector2(0, 80)
-		if is_locked:
-			card.modulate = Color(1.0, 1.0, 1.0, 0.45)
-		var card_vbox := VBoxContainer.new()
-		var name_lbl := Label.new()
-		name_lbl.text = item["name"]
-		name_lbl.add_theme_color_override("font_color", C_TEXT_PRIMARY)
-		name_lbl.add_theme_font_size_override("font_size", 20)
-		var desc_lbl := Label.new()
-		if is_locked:
-			desc_lbl.text = item.get("unlock_label", item["desc"])
-		else:
-			desc_lbl.text = item["desc"]
-		desc_lbl.add_theme_color_override("font_color", C_TEXT_SECONDARY)
-		desc_lbl.add_theme_font_size_override("font_size", 14)
-		card_vbox.add_child(name_lbl)
-		card_vbox.add_child(desc_lbl)
-		card.add_child(card_vbox)
-		if not is_locked:
-			var mode_val: int = item["mode"]
-			card.gui_input.connect(func(event: InputEvent) -> void:
-				if event is InputEventMouseButton and event.pressed:
-					_close_bottom_sheet(sheet.get_meta("overlay") as Control, sheet)
-					get_tree().create_timer(0.3).timeout.connect(
-						func() -> void: start_new_game(mode_val as GameMode), CONNECT_ONE_SHOT)
-			)
-		grid.add_child(card)
-
-	vbox.add_child(grid)
-
-	# Weekly Challenge special card
+	# ── Weekly hero card ─────────────────────────────────────────────────────
 	var week_num_display: int = (Time.get_unix_time_from_system() / 604800) as int
 	var weekly_done: bool = SaveData.weekly_last_week == week_num_display
-	var weekly_panel := PanelContainer.new()
-	_style_panel_glass(weekly_panel)
-	weekly_panel.custom_minimum_size = Vector2(0, 80)
-	var weekly_inner := VBoxContainer.new()
-	weekly_inner.set("theme_override_constants/separation", 4)
-	var weekly_title := Label.new()
-	weekly_title.text = "Weekly #%d%s" % [week_num_display, " ✓" if weekly_done else ""]
-	weekly_title.add_theme_color_override("font_color", Color("#6B4E71"))
-	weekly_title.add_theme_font_size_override("font_size", 22)
-	weekly_inner.add_child(weekly_title)
-	var weekly_desc := Label.new()
-	weekly_desc.text = "5 slots · 8 guesses · +200 XP" if not weekly_done else "Come back next week!"
-	weekly_desc.add_theme_color_override("font_color", Color("#9B7EA6"))
-	weekly_desc.add_theme_font_size_override("font_size", 18)
-	weekly_inner.add_child(weekly_desc)
-	weekly_panel.add_child(weekly_inner)
+	var weekly_hero := _make_hero_card(
+		"🏆",
+		"Weekly Challenge #%d" % week_num_display,
+		"5 dots · 8 guesses · +200 XP bonus",
+		"Take On Weekly  →",
+		Color("#FBBF24"),
+		Color("#F472B6"),
+		weekly_done,
+		"✓ Done — come back next week"
+	)
 	if not weekly_done:
-		var overlay_ref := sheet.get_meta("overlay") as Control
-		weekly_panel.gui_input.connect(func(event: InputEvent) -> void:
+		weekly_hero.gui_input.connect(func(event: InputEvent) -> void:
 			if event is InputEventMouseButton and event.pressed:
 				_close_bottom_sheet(overlay_ref, sheet)
 				get_tree().create_timer(0.3).timeout.connect(
 					func(): _start_weekly_challenge(), CONNECT_ONE_SHOT)
 		)
-	vbox.add_child(weekly_panel)
+	vbox.add_child(weekly_hero)
 
-	# Custom puzzle link
+	# ── Modes section header ─────────────────────────────────────────────────
+	var section_lbl := Label.new()
+	section_lbl.text = "More Ways to Play"
+	section_lbl.add_theme_color_override("font_color", C_TEXT_SECONDARY)
+	section_lbl.add_theme_font_size_override("font_size", 14)
+	vbox.add_child(section_lbl)
+
+	# ── Mode grid with vivid accent cards ────────────────────────────────────
+	var modes := [
+		{"mode": GameMode.CLASSIC,      "name": "Classic",      "hook": "The pure game",           "icon": "🎯", "accent": Color("#F472B6")},
+		{"mode": GameMode.EASY,         "name": "Easy",         "hook": "Per-dot color hints",      "icon": "🌱", "accent": Color("#22C55E")},
+		{"mode": GameMode.BLITZ,        "name": "Blitz",        "hook": "90s against the clock",    "icon": "⚡", "accent": Color("#FBBF24")},
+		{"mode": GameMode.HARD,         "name": "Hard",         "hook": "6 colors, locked slots",   "icon": "💀", "accent": Color("#EF4444")},
+		{"mode": GameMode.ZEN,          "name": "Zen",          "hook": "Unlimited. No pressure.",  "icon": "🧘", "accent": Color("#A78BFA")},
+		{"mode": GameMode.CAMPAIGN,     "name": "Campaign",     "hook": "100 levels · 3 stars",    "icon": "🗺️", "accent": Color("#3B82F6")},
+		{"mode": GameMode.MYSTERY,      "name": "Mystery",      "hook": "Hidden dot count",          "icon": "🎭", "accent": Color("#A855F7")},
+		{"mode": GameMode.TIME_TRIAL,   "name": "Time Trial",   "hook": "5 puzzles back-to-back",   "icon": "⏱️", "accent": Color("#06B6D4")},
+		{"mode": GameMode.DUO,          "name": "Duo",          "hook": "Two codes, one guess",     "icon": "👯", "accent": Color("#F97316")},
+		{"mode": GameMode.SUDDEN_DEATH, "name": "Sudden Death", "hook": "One wrong = game over",    "icon": "☠️", "accent": Color("#DC2626"),
+		 "locked": SaveData.level < 10, "unlock_label": "Unlock at Lv 10"},
+		{"mode": GameMode.SANDBOX,      "name": "Sandbox",      "hook": "Set your own secret",     "icon": "🎨", "accent": Color("#8B5CF6")},
+	]
+
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 10)
+	grid.add_theme_constant_override("v_separation", 10)
+
+	for item in modes:
+		var is_locked: bool = item.get("locked", false)
+		var card := _make_vivid_mode_card(item, is_locked)
+		if not is_locked:
+			var mode_val: int = item["mode"]
+			card.gui_input.connect(func(event: InputEvent) -> void:
+				if event is InputEventMouseButton and event.pressed:
+					_close_bottom_sheet(overlay_ref, sheet)
+					get_tree().create_timer(0.3).timeout.connect(
+						func() -> void: start_new_game(mode_val as GameMode), CONNECT_ONE_SHOT)
+			)
+		grid.add_child(card)
+	vbox.add_child(grid)
+
+	# ── Friend's code link ───────────────────────────────────────────────────
 	var custom_link := Button.new()
-	custom_link.text = "🔗 Play a friend's code"
+	custom_link.text = "🔗  Enter a friend's puzzle code"
+	custom_link.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	custom_link.flat = true
 	custom_link.add_theme_color_override("font_color", C_TEXT_SECONDARY)
+	custom_link.add_theme_font_size_override("font_size", 15)
 	custom_link.pressed.connect(_open_custom_puzzle_code_sheet)
 	vbox.add_child(custom_link)
+
+func _make_hero_card(icon: String, title: String, subtitle: String, cta: String,
+		accent_a: Color, accent_b: Color, is_done: bool, done_label: String) -> PanelContainer:
+	var card := PanelContainer.new()
+	card.custom_minimum_size = Vector2(0, 92)
+	var sb := StyleBoxFlat.new()
+	# Rich jewel-tone background: mix accent_a into panel for vividness
+	sb.bg_color = Color(accent_a.r * 0.35, accent_a.g * 0.2, accent_b.b * 0.55, 0.92)
+	sb.border_color = Color(accent_a.r, accent_a.g, accent_a.b, 0.75)
+	sb.border_width_left = 2
+	sb.border_width_right = 1
+	sb.border_width_top = 1
+	sb.border_width_bottom = 1
+	sb.corner_radius_top_left = 18
+	sb.corner_radius_top_right = 18
+	sb.corner_radius_bottom_left = 18
+	sb.corner_radius_bottom_right = 18
+	sb.shadow_color = Color(accent_a.r, accent_a.g, accent_a.b, 0.25)
+	sb.shadow_size = 12
+	card.add_theme_stylebox_override("panel", sb)
+	if is_done:
+		card.modulate = Color(1, 1, 1, 0.45)
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 18)
+	margin.add_theme_constant_override("margin_right", 18)
+	margin.add_theme_constant_override("margin_top", 14)
+	margin.add_theme_constant_override("margin_bottom", 14)
+	card.add_child(margin)
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 14)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	margin.add_child(row)
+
+	var icon_lbl := Label.new()
+	icon_lbl.text = icon
+	icon_lbl.add_theme_font_size_override("font_size", 34)
+	icon_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(icon_lbl)
+
+	var col := VBoxContainer.new()
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col.add_theme_constant_override("separation", 2)
+	row.add_child(col)
+
+	var title_lbl := Label.new()
+	title_lbl.text = title
+	title_lbl.add_theme_color_override("font_color", Color.WHITE)
+	title_lbl.add_theme_font_size_override("font_size", 20)
+	col.add_child(title_lbl)
+
+	var sub_lbl := Label.new()
+	sub_lbl.text = done_label if is_done else subtitle
+	sub_lbl.add_theme_color_override("font_color", Color(1, 1, 1, 0.75))
+	sub_lbl.add_theme_font_size_override("font_size", 13)
+	col.add_child(sub_lbl)
+
+	if not is_done:
+		var cta_lbl := Label.new()
+		cta_lbl.text = cta
+		cta_lbl.add_theme_color_override("font_color", accent_a.lightened(0.25))
+		cta_lbl.add_theme_font_size_override("font_size", 14)
+		col.add_child(cta_lbl)
+
+	return card
+
+func _make_vivid_mode_card(item: Dictionary, is_locked: bool) -> PanelContainer:
+	var accent: Color = item.get("accent", C_CTA_FROM)
+	var card := PanelContainer.new()
+	card.custom_minimum_size = Vector2(0, 88)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.14, 0.09, 0.28, 0.80)
+	sb.border_color = Color(accent.r, accent.g, accent.b, 0.55)
+	sb.border_width_left = 3
+	sb.border_width_right = 1
+	sb.border_width_top = 1
+	sb.border_width_bottom = 1
+	sb.corner_radius_top_left = 14
+	sb.corner_radius_top_right = 14
+	sb.corner_radius_bottom_left = 14
+	sb.corner_radius_bottom_right = 14
+	card.add_theme_stylebox_override("panel", sb)
+	if is_locked:
+		card.modulate = Color(1, 1, 1, 0.40)
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 14)
+	margin.add_theme_constant_override("margin_right", 12)
+	margin.add_theme_constant_override("margin_top", 12)
+	margin.add_theme_constant_override("margin_bottom", 12)
+	card.add_child(margin)
+
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 3)
+	margin.add_child(vb)
+
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 8)
+	vb.add_child(top)
+
+	var icon_lbl := Label.new()
+	icon_lbl.text = str(item.get("icon", "•"))
+	icon_lbl.add_theme_font_size_override("font_size", 22)
+	top.add_child(icon_lbl)
+
+	var name_lbl := Label.new()
+	name_lbl.text = str(item["name"])
+	name_lbl.add_theme_color_override("font_color", accent.lightened(0.35))
+	name_lbl.add_theme_font_size_override("font_size", 18)
+	top.add_child(name_lbl)
+
+	var hook_lbl := Label.new()
+	hook_lbl.text = str(item.get("unlock_label", "")) if is_locked and item.has("unlock_label") else str(item.get("hook", ""))
+	hook_lbl.add_theme_color_override("font_color", C_TEXT_SECONDARY)
+	hook_lbl.add_theme_font_size_override("font_size", 13)
+	hook_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vb.add_child(hook_lbl)
+
+	return card
 
 func _open_custom_puzzle_code_sheet() -> void:
 	var sheet := _build_bottom_sheet("Enter Puzzle Code")
