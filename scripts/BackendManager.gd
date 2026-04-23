@@ -108,7 +108,7 @@ func _post_json(url: String, body: String, extra_headers: PackedStringArray = Pa
 	if err != OK:
 		http.queue_free()
 		return {}
-	var response := await http.request_completed
+	var response: Array = await http.request_completed
 	http.queue_free()
 	if response[0] != HTTPRequest.RESULT_SUCCESS or response[1] not in [200, 201]:
 		push_warning("BackendManager POST failed: %d %d" % [response[0], response[1]])
@@ -133,7 +133,7 @@ func _post_json_any(url: String, body: String, headers: PackedStringArray = []) 
 	if err != OK:
 		http.queue_free()
 		return {}
-	var response := await http.request_completed
+	var response: Array = await http.request_completed
 	http.queue_free()
 	if response[0] != HTTPRequest.RESULT_SUCCESS:
 		return {}
@@ -156,7 +156,7 @@ func _get_json(url: String, id_token: String = "") -> Dictionary:
 	if err != OK:
 		http.queue_free()
 		return {}
-	var response := await http.request_completed
+	var response: Array = await http.request_completed
 	http.queue_free()
 	if response[0] != HTTPRequest.RESULT_SUCCESS or response[1] != 200:
 		return {}
@@ -180,7 +180,7 @@ func _delete_request(url: String, id_token: String) -> bool:
 	if err != OK:
 		http.queue_free()
 		return false
-	var response := await http.request_completed
+	var response: Array = await http.request_completed
 	http.queue_free()
 	return response[1] in [200, 204]
 
@@ -196,7 +196,7 @@ func _patch_json(url: String, body: String, id_token: String) -> Dictionary:
 	if err != OK:
 		http.queue_free()
 		return {}
-	var response := await http.request_completed
+	var response: Array = await http.request_completed
 	http.queue_free()
 	if response[0] != HTTPRequest.RESULT_SUCCESS or response[1] not in [200, 201]:
 		return {}
@@ -220,7 +220,7 @@ func _put_json(url: String, body: String, id_token: String) -> Dictionary:
 	if err != OK:
 		http.queue_free()
 		return {}
-	var response := await http.request_completed
+	var response: Array = await http.request_completed
 	http.queue_free()
 	if response[0] != HTTPRequest.RESULT_SUCCESS or response[1] not in [200, 201]:
 		return {}
@@ -423,7 +423,7 @@ func fetch_leaderboard(date: String) -> Array:
 	if err != OK:
 		http.queue_free()
 		return []
-	var response := await http.request_completed
+	var response: Array = await http.request_completed
 	http.queue_free()
 	if response[0] != HTTPRequest.RESULT_SUCCESS or response[1] != 200:
 		return []
@@ -474,7 +474,7 @@ func fetch_player_count(date: String) -> int:
 	if err != OK:
 		http.queue_free()
 		return 0
-	var response := await http.request_completed
+	var response: Array = await http.request_completed
 	http.queue_free()
 	if response[0] != HTTPRequest.RESULT_SUCCESS or response[1] != 200:
 		return 0
