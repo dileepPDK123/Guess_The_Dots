@@ -8,7 +8,7 @@ extends Control
 ##   HARD     — 5-6 slots, 6 colors, 10 guesses; previous "exact" slots are locked
 ##   ZEN      — 4 slots, 5 colors, unlimited guesses, no timer, relaxed
 
-enum GameMode { CLASSIC, BLITZ, HARD, ZEN, CAMPAIGN, EASY, MYSTERY, TIME_TRIAL, DUO, SUDDEN_DEATH, SANDBOX }
+enum GameMode { CLASSIC, BLITZ, HARD, ZEN, CAMPAIGN, EASY, MYSTERY, TIME_TRIAL, DUO, SUDDEN_DEATH, SANDBOX, DAILY }
 
 class _BlitzRingControl extends Control:
 	var progress: float = 1.0
@@ -170,6 +170,9 @@ var _sandbox_creator_sequence: Array[int] = []
 # ── Weekly Challenge ──────────────────────────────────────────────────────────
 var _weekly_week_num: int = 0
 
+# ── Daily Challenge ───────────────────────────────────────────────────────────
+var _playing_daily: bool = false
+
 # ── Duo mode ──────────────────────────────────────────────────────────────────
 var _duo_secret_b: Array[int] = []
 var _duo_history_b: Array = []
@@ -280,6 +283,21 @@ func _ready() -> void:
 	# Connect login streak reward signal — fires if today is a new day
 	SaveData.login_streak_updated.connect(_on_login_streak_updated)
 	ComboManager.combo_changed.connect(_on_combo_changed)
+	BackendManager.cloud_save_pulled.connect(func():
+		_show_toast("Progress restored ✓")
+	)
+	BackendManager.account_linked.connect(func(linked_name: String) -> void:
+		_show_toast("Account linked! Progress protected ✓")
+	)
+	BackendManager.account_link_failed.connect(func(reason: String) -> void:
+		_show_toast("Sign-in failed: %s" % reason)
+	)
+	BackendManager.account_deleted.connect(func() -> void:
+		get_tree().change_scene_to_file("res://scenes/Splash.tscn")
+	)
+	BackendManager.account_delete_failed.connect(func(reason: String) -> void:
+		_show_toast("Delete failed: %s" % reason)
+	)
 
 # =============================================================================
 # Settings
@@ -418,6 +436,7 @@ func _show_game_screen() -> void:
 func start_new_game(mode: GameMode = GameMode.CLASSIC, campaign_level: int = 1) -> void:
 	_game_start_ms            = Time.get_ticks_msec()
 	_is_new_pb                = false
+	_playing_daily            = false
 	current_mode              = mode
 	_current_campaign_level   = campaign_level
 	_campaign_won             = false
@@ -484,6 +503,11 @@ func start_new_game(mode: GameMode = GameMode.CLASSIC, campaign_level: int = 1) 
 		GameMode.SANDBOX:
 			_start_sandbox_game()
 			return
+		GameMode.DAILY:
+			MAX_GUESSES  = DailyChallenge.DAILY_MAX_GUESSES
+			slots_needed = DailyChallenge.DAILY_SLOTS
+			secret_sequence.assign(DailyChallenge.get_today_sequence())
+			_playing_daily = true
 
 	_tracker_absent.clear()
 	_tracker_present.clear()
@@ -888,6 +912,34 @@ func _open_settings_sheet() -> void:
 	hap_row.add_child(hap_toggle)
 	vbox.add_child(hap_row)
 
+	# Account sync button
+	if not SaveData.firebase_linked:
+		var sync_btn := Button.new()
+		sync_btn.text = "Sign in to sync across devices"
+		sync_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		sync_btn.custom_minimum_size = Vector2(0, 52)
+		sync_btn.pressed.connect(func() -> void:
+			if OS.get_name() == "Android":
+				BackendManager.start_google_sign_in()
+			elif OS.get_name() == "iOS":
+				BackendManager.start_apple_sign_in()
+		)
+		vbox.add_child(sync_btn)
+	else:
+		var linked_lbl := Label.new()
+		linked_lbl.text = "✓ Synced as %s" % SaveData.firebase_display_name
+		linked_lbl.add_theme_color_override("font_color", Color("#10B981"))
+		vbox.add_child(linked_lbl)
+
+	# Delete account button
+	var delete_btn := Button.new()
+	delete_btn.text = "Delete Account & Data"
+	delete_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	delete_btn.custom_minimum_size = Vector2(0, 52)
+	delete_btn.add_theme_color_override("font_color", Color("#EF4444"))
+	delete_btn.pressed.connect(_confirm_account_deletion)
+	vbox.add_child(delete_btn)
+
 func _on_overlay_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		_close_hamburger_menu()
@@ -914,6 +966,30 @@ func _on_haptics_toggled(pressed: bool) -> void:
 	_save_settings()
 	if pressed:
 		_vibrate(30)
+
+func _confirm_account_deletion() -> void:
+	var sheet := _build_bottom_sheet("Delete Account?")
+	var vbox := sheet.get_node("Content") as VBoxContainer
+	var warn_lbl := Label.new()
+	warn_lbl.text = "This permanently deletes your progress, XP, achievements, and leaderboard history. This cannot be undone."
+	warn_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	warn_lbl.add_theme_color_override("font_color", Color("#6B4E71"))
+	vbox.add_child(warn_lbl)
+	var confirm_btn := Button.new()
+	confirm_btn.text = "Delete Everything"
+	confirm_btn.custom_minimum_size = Vector2(0, 52)
+	confirm_btn.add_theme_color_override("font_color", Color.WHITE)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color("#EF4444")
+	sb.corner_radius_top_left    = 14
+	sb.corner_radius_top_right   = 14
+	sb.corner_radius_bottom_left  = 14
+	sb.corner_radius_bottom_right = 14
+	confirm_btn.add_theme_stylebox_override("normal", sb)
+	confirm_btn.pressed.connect(func() -> void:
+		BackendManager.delete_account()
+	)
+	vbox.add_child(confirm_btn)
 
 # =============================================================================
 # Build UI
@@ -1859,6 +1935,7 @@ func _base_xp_for_mode() -> int:
 		GameMode.HARD:     return 50
 		GameMode.ZEN:      return 20
 		GameMode.CAMPAIGN: return 35
+		GameMode.DAILY:    return 75
 		_:                 return 30
 
 # =============================================================================
@@ -2008,6 +2085,12 @@ func _finish_game(did_win: bool, message: String = "") -> void:
 		slots_needed,
 		_game_elapsed_ms()
 	)
+	BackendManager.push_save()  # async fire-and-forget
+
+	if _is_daily_challenge():
+		var elapsed := _game_elapsed_ms()
+		await BackendManager.submit_daily_score(guess_history.size(), elapsed, did_win)
+		SaveData.record_daily(did_win, guess_history.size(), slots_needed)
 
 	_show_result_sheet(did_win, guess_history.size())
 	# TODO: update to pastel
@@ -2461,6 +2544,37 @@ func _make_mode_card(data: Dictionary, open_campaign: bool = false) -> Control:
 func _open_mode_select() -> void:
 	var sheet := _build_bottom_sheet("Choose Mode")
 	var vbox := sheet.get_node("Content") as VBoxContainer
+
+	# Daily Challenge card — pinned at top, locked after completion
+	var daily_done: bool = SaveData.is_daily_done_today()
+	var daily_num := DailyChallenge.get_today_number()
+	var daily_panel := PanelContainer.new()
+	_style_panel_glass(daily_panel)
+	daily_panel.custom_minimum_size = Vector2(0, 80)
+	if daily_done:
+		daily_panel.modulate = Color(1.0, 1.0, 1.0, 0.45)
+	var daily_inner := VBoxContainer.new()
+	daily_inner.set("theme_override_constants/separation", 4)
+	var daily_title := Label.new()
+	daily_title.text = "Daily #%d%s" % [daily_num, " ✓" if daily_done else ""]
+	daily_title.add_theme_color_override("font_color", Color("#22c55e"))
+	daily_title.add_theme_font_size_override("font_size", 22)
+	daily_inner.add_child(daily_title)
+	var daily_desc := Label.new()
+	daily_desc.text = "4 slots · 8 guesses · +75 XP" if not daily_done else "Come back tomorrow!"
+	daily_desc.add_theme_color_override("font_color", C_TEXT_SECONDARY)
+	daily_desc.add_theme_font_size_override("font_size", 18)
+	daily_inner.add_child(daily_desc)
+	daily_panel.add_child(daily_inner)
+	if not daily_done:
+		var overlay_ref := sheet.get_meta("overlay") as Control
+		daily_panel.gui_input.connect(func(event: InputEvent) -> void:
+			if event is InputEventMouseButton and event.pressed:
+				_close_bottom_sheet(overlay_ref, sheet)
+				get_tree().create_timer(0.3).timeout.connect(
+					func() -> void: start_new_game(GameMode.DAILY), CONNECT_ONE_SHOT)
+		)
+	vbox.add_child(daily_panel)
 
 	var modes := [
 		{"mode": GameMode.CLASSIC,  "name": "Classic",  "desc": "3–5 slots · 10 guesses"},
@@ -3367,6 +3481,29 @@ func _close_bottom_sheet(overlay: Control, sheet: Control) -> void:
 func _game_elapsed_ms() -> int:
 	return Time.get_ticks_msec() - _game_start_ms
 
+func _is_daily_challenge() -> bool:
+	return _playing_daily
+
+func _add_leaderboard_row(container: VBoxContainer, rank: int, entry: Dictionary, is_player: bool) -> void:
+	var row := HBoxContainer.new()
+	var rank_lbl := Label.new()
+	rank_lbl.text = ">100" if rank == -1 else "#%d" % rank
+	rank_lbl.custom_minimum_size.x = 40
+	var name_lbl := Label.new()
+	name_lbl.text = entry.get("display_name", "?")
+	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var score_lbl := Label.new()
+	var guesses: int = entry.get("guesses_used", 0)
+	var time_sec: float = entry.get("time_ms", 0) / 1000.0
+	score_lbl.text = "%d guess%s · %ds" % [guesses, "es" if guesses != 1 else "", int(time_sec)]
+	if is_player:
+		for lbl in [rank_lbl, name_lbl, score_lbl]:
+			lbl.add_theme_color_override("font_color", Color("#F472B6"))
+	row.add_child(rank_lbl)
+	row.add_child(name_lbl)
+	row.add_child(score_lbl)
+	container.add_child(row)
+
 # =============================================================================
 # Resume Game
 # =============================================================================
@@ -3542,6 +3679,48 @@ func _show_result_sheet(did_win: bool, guesses_used: int) -> void:
 	share_btn.custom_minimum_size = Vector2(0, 52)
 	share_btn.pressed.connect(_on_share_pressed)
 	vbox.add_child(share_btn)
+
+	# Daily leaderboard section
+	if _is_daily_challenge():
+		var date := Time.get_date_string_from_system()
+		var top_entries := await BackendManager.fetch_leaderboard(date)
+		var total_count := await BackendManager.fetch_player_count(date)
+		var player_guesses := guess_history.size()
+		var percentile := BackendManager._compute_percentile(player_guesses, total_count, top_entries)
+
+		var rank_lbl := Label.new()
+		rank_lbl.text = "Better than %d%% of %d players today" % [percentile, total_count]
+		rank_lbl.add_theme_color_override("font_color", C_TEXT_SECONDARY)
+		rank_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		vbox.add_child(rank_lbl)
+
+		# Find player's rank in top 100
+		var player_rank := -1
+		for i in range(top_entries.size()):
+			if top_entries[i].get("uid", "") == SaveData.firebase_uid:
+				player_rank = i + 1
+				break
+
+		# Show top 10
+		for i in range(mini(top_entries.size(), 10)):
+			var is_player := (i + 1 == player_rank)
+			_add_leaderboard_row(vbox, i + 1, top_entries[i], is_player)
+
+		# Show player row if not in top 10
+		if player_rank > 10 and player_rank - 1 < top_entries.size():
+			var sep := Label.new()
+			sep.text = "…"
+			sep.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			vbox.add_child(sep)
+			_add_leaderboard_row(vbox, player_rank, top_entries[player_rank - 1], true)
+		elif player_rank == -1:
+			var player_score := await BackendManager.fetch_player_score(date)
+			if not player_score.is_empty():
+				var sep := Label.new()
+				sep.text = "…"
+				sep.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+				vbox.add_child(sep)
+				_add_leaderboard_row(vbox, -1, player_score, true)
 
 	# Play Again + Menu buttons
 	var btn_row := HBoxContainer.new()

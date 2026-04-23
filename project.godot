@@ -29,6 +29,7 @@ SoundManager="*res://scripts/SoundManager.gd"
 ComboManager="*res://scripts/ComboManager.gd"
 ShopManager="*res://scripts/ShopManager.gd"
 SeasonManager="*res://scripts/SeasonManager.gd"
+BackendManager="*res://scripts/BackendManager.gd"
 
 [display]
 
@@ -39,3 +40,8 @@ window/stretch/mode="canvas_items"
 [dotnet]
 
 project/assembly_name="Guess the Dots"
+
+[Firebase]
+
+api_key="AIzaSyBnIIhjYBa3rIRnE9SiRFEg7ACUZNFMmaM"
+project_id="guess-the-dots-ce3ff"
