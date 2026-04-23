@@ -226,7 +226,7 @@ func load_data() -> void:
 	# Season
 	season_xp             = _cfg.get_value("season", "season_xp",       0)
 	season_number         = _cfg.get_value("season", "season_number",    1)
-	season_claimed        = _cfg.get_value("season", "season_claimed",   [false,false,false,false,false])
+	season_claimed.assign(_cfg.get_value("season", "season_claimed", [false,false,false,false,false]))
 	season_badge          = _cfg.get_value("season", "season_badge",     "")
 	season_config_cache   = _cfg.get_value("season", "config_cache",     {})
 
