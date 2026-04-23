@@ -17,7 +17,7 @@ class _BlitzRingControl extends Control:
 
 	func _draw() -> void:
 		var center := size / 2.0
-		var radius := min(size.x, size.y) / 2.0 - 4.0
+		var radius: float = min(size.x, size.y) / 2.0 - 4.0
 		# Background track
 		draw_arc(center, radius, 0.0, TAU, 64, Color(0.8, 0.8, 0.8, 0.3), 5.0, true)
 		# Progress arc (clockwise from top)
@@ -394,6 +394,51 @@ func _style_panel_glass(panel: PanelContainer) -> void:
 	sb.shadow_color = Color(0.655, 0.447, 0.714, 0.10)
 	sb.shadow_size  = 16
 	panel.add_theme_stylebox_override("panel", sb)
+
+func _style_cta_button(btn: Button) -> void:
+	if btn == null:
+		return
+	btn.add_theme_color_override("font_color", Color.WHITE)
+	btn.add_theme_font_size_override("font_size", 20)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color("#22c55e")
+	sb.corner_radius_top_left    = 14
+	sb.corner_radius_top_right   = 14
+	sb.corner_radius_bottom_left  = 14
+	sb.corner_radius_bottom_right = 14
+	sb.content_margin_left   = 14
+	sb.content_margin_right  = 14
+	sb.content_margin_top    = 10
+	sb.content_margin_bottom = 10
+	btn.add_theme_stylebox_override("normal", sb)
+	var sb_hover := sb.duplicate() as StyleBoxFlat
+	sb_hover.bg_color = Color("#22c55e").lightened(0.08)
+	btn.add_theme_stylebox_override("hover", sb_hover)
+	var sb_pressed := sb.duplicate() as StyleBoxFlat
+	sb_pressed.bg_color = Color("#22c55e").darkened(0.08)
+	btn.add_theme_stylebox_override("pressed", sb_pressed)
+
+func _set_slot_filled(slot: Control, color: Color) -> void:
+	if slot == null:
+		return
+	var existing := slot.get_theme_stylebox("normal")
+	var sb: StyleBoxFlat
+	if existing != null:
+		sb = existing.duplicate() as StyleBoxFlat
+	if sb == null:
+		sb = StyleBoxFlat.new()
+		sb.corner_radius_top_left    = 12
+		sb.corner_radius_top_right   = 12
+		sb.corner_radius_bottom_left  = 12
+		sb.corner_radius_bottom_right = 12
+	sb.bg_color = color
+	slot.add_theme_stylebox_override("normal", sb)
+
+func _generate_secret(slots: int, colors: int) -> Array[int]:
+	var seq: Array[int] = []
+	for _i in range(slots):
+		seq.append(rng.randi_range(0, colors - 1))
+	return seq
 
 # =============================================================================
 # Vocabulary — rename static labels to NEURAL GRID copy
@@ -2026,7 +2071,7 @@ func _finish_game(did_win: bool, message: String = "") -> void:
 
 	# Personal bests
 	if did_win:
-		var mode_key := GameMode.keys()[current_mode]
+		var mode_key: String = GameMode.keys()[current_mode]
 		var pb: Dictionary = SaveData.personal_bests.get(mode_key, {})
 		var new_min_guesses: int = guess_history.size()
 		var new_min_time: int = _game_elapsed_ms()
@@ -3510,7 +3555,7 @@ func _add_leaderboard_row(container: VBoxContainer, rank: int, entry: Dictionary
 func _show_resume_prompt() -> void:
 	var sheet := _build_bottom_sheet("Resume Game?")
 	var vbox := sheet.get_node("Content") as VBoxContainer
-	var mode_name := GameMode.keys()[SaveData.resume_mode] if SaveData.resume_mode >= 0 else "Unknown"
+	var mode_name: String = GameMode.keys()[SaveData.resume_mode] if SaveData.resume_mode >= 0 else "Unknown"
 	var info_lbl := Label.new()
 	info_lbl.text = "%s — %d guesses in" % [mode_name.capitalize(), SaveData.resume_history.size()]
 	info_lbl.add_theme_color_override("font_color", C_TEXT_SECONDARY)
@@ -3778,7 +3823,7 @@ func _open_custom_puzzle_create() -> void:
 		btn.color_name  = str(PALETTE[ci]["name"])
 		var captured_ci := ci
 		btn.pressed.connect(func() -> void:
-			var s := selected_slot_ref[0]
+			var s: int = selected_slot_ref[0]
 			if s < 4:
 				creator_sequence[s] = captured_ci
 				(creator_slots[s] as SlotButton).set_filled_visual(PALETTE[captured_ci]["color"], "")
@@ -3815,7 +3860,7 @@ func _open_custom_puzzle_play(code: String) -> void:
 	SaveData.save()
 
 func _on_share_pressed() -> void:
-	var mode_name := GameMode.keys()[current_mode].capitalize()
+	var mode_name: String = GameMode.keys()[current_mode].capitalize()
 	var text := DailyChallenge.build_share_text_general(
 		mode_name, guess_history, secret_sequence,
 		_last_game_won, MAX_GUESSES
