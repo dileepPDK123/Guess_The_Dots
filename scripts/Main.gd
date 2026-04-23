@@ -8,7 +8,7 @@ extends Control
 ##   HARD     — 5-6 slots, 6 colors, 10 guesses; previous "exact" slots are locked
 ##   ZEN      — 4 slots, 5 colors, unlimited guesses, no timer, relaxed
 
-enum GameMode { CLASSIC, BLITZ, HARD, ZEN, CAMPAIGN, EASY, MYSTERY, TIME_TRIAL, DUO, SUDDEN_DEATH, SANDBOX }
+enum GameMode { CLASSIC, BLITZ, HARD, ZEN, CAMPAIGN, EASY, MYSTERY, TIME_TRIAL, DUO, SUDDEN_DEATH, SANDBOX, DAILY }
 
 class _BlitzRingControl extends Control:
 	var progress: float = 1.0
@@ -436,6 +436,7 @@ func _show_game_screen() -> void:
 func start_new_game(mode: GameMode = GameMode.CLASSIC, campaign_level: int = 1) -> void:
 	_game_start_ms            = Time.get_ticks_msec()
 	_is_new_pb                = false
+	_playing_daily            = false
 	current_mode              = mode
 	_current_campaign_level   = campaign_level
 	_campaign_won             = false
@@ -502,6 +503,11 @@ func start_new_game(mode: GameMode = GameMode.CLASSIC, campaign_level: int = 1) 
 		GameMode.SANDBOX:
 			_start_sandbox_game()
 			return
+		GameMode.DAILY:
+			MAX_GUESSES  = DailyChallenge.DAILY_MAX_GUESSES
+			slots_needed = DailyChallenge.DAILY_SLOTS
+			secret_sequence.assign(DailyChallenge.get_today_sequence())
+			_playing_daily = true
 
 	_tracker_absent.clear()
 	_tracker_present.clear()
@@ -1929,6 +1935,7 @@ func _base_xp_for_mode() -> int:
 		GameMode.HARD:     return 50
 		GameMode.ZEN:      return 20
 		GameMode.CAMPAIGN: return 35
+		GameMode.DAILY:    return 75
 		_:                 return 30
 
 # =============================================================================
@@ -2083,6 +2090,7 @@ func _finish_game(did_win: bool, message: String = "") -> void:
 	if _is_daily_challenge():
 		var elapsed := _game_elapsed_ms()
 		await BackendManager.submit_daily_score(guess_history.size(), elapsed, did_win)
+		SaveData.record_daily(did_win, guess_history.size(), slots_needed)
 
 	_show_result_sheet(did_win, guess_history.size())
 	# TODO: update to pastel
@@ -2536,6 +2544,37 @@ func _make_mode_card(data: Dictionary, open_campaign: bool = false) -> Control:
 func _open_mode_select() -> void:
 	var sheet := _build_bottom_sheet("Choose Mode")
 	var vbox := sheet.get_node("Content") as VBoxContainer
+
+	# Daily Challenge card — pinned at top, locked after completion
+	var daily_done: bool = SaveData.is_daily_done_today()
+	var daily_num := DailyChallenge.get_today_number()
+	var daily_panel := PanelContainer.new()
+	_style_panel_glass(daily_panel)
+	daily_panel.custom_minimum_size = Vector2(0, 80)
+	if daily_done:
+		daily_panel.modulate = Color(1.0, 1.0, 1.0, 0.45)
+	var daily_inner := VBoxContainer.new()
+	daily_inner.set("theme_override_constants/separation", 4)
+	var daily_title := Label.new()
+	daily_title.text = "Daily #%d%s" % [daily_num, " ✓" if daily_done else ""]
+	daily_title.add_theme_color_override("font_color", Color("#22c55e"))
+	daily_title.add_theme_font_size_override("font_size", 22)
+	daily_inner.add_child(daily_title)
+	var daily_desc := Label.new()
+	daily_desc.text = "4 slots · 8 guesses · +75 XP" if not daily_done else "Come back tomorrow!"
+	daily_desc.add_theme_color_override("font_color", C_TEXT_SECONDARY)
+	daily_desc.add_theme_font_size_override("font_size", 18)
+	daily_inner.add_child(daily_desc)
+	daily_panel.add_child(daily_inner)
+	if not daily_done:
+		var overlay_ref := sheet.get_meta("overlay") as Control
+		daily_panel.gui_input.connect(func(event: InputEvent) -> void:
+			if event is InputEventMouseButton and event.pressed:
+				_close_bottom_sheet(overlay_ref, sheet)
+				get_tree().create_timer(0.3).timeout.connect(
+					func() -> void: start_new_game(GameMode.DAILY), CONNECT_ONE_SHOT)
+		)
+	vbox.add_child(daily_panel)
 
 	var modes := [
 		{"mode": GameMode.CLASSIC,  "name": "Classic",  "desc": "3–5 slots · 10 guesses"},
