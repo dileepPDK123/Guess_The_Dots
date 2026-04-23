@@ -257,20 +257,19 @@ func _ready() -> void:
 	_build_palette()
 	_build_mode_select()
 
-	# STATISTICS button — injected into menu VBox after BRIEFING
+	# STATISTICS button — injected into menu VBox after How to Play
 	var stats_btn := Button.new()
-	stats_btn.text = "STATISTICS"
-	stats_btn.custom_minimum_size = Vector2(0, 74)
+	stats_btn.text = "Statistics"
 	stats_btn.pressed.connect(_open_stats_screen)
+	_style_menu_button(stats_btn, false)
 	var menu_vbox := get_node("MenuLayer/MenuPanel/MenuMargin/MenuVBox")
 	menu_vbox.add_child(stats_btn)
 	menu_vbox.move_child(stats_btn, how_to_play_menu_button.get_index() + 1)
 
 	var rewards_btn := Button.new()
-	rewards_btn.text = "REWARDS"
-	rewards_btn.custom_minimum_size = Vector2(0, 74)
-	rewards_btn.add_theme_font_size_override("font_size", 26)
+	rewards_btn.text = "Rewards"
 	rewards_btn.pressed.connect(_open_rewards_screen)
+	_style_menu_button(rewards_btn, false)
 	menu_vbox.add_child(rewards_btn)
 	menu_vbox.move_child(rewards_btn, stats_btn.get_index() + 1)
 
@@ -332,50 +331,128 @@ func _vibrate_lose() -> void:
 # Pastel theme
 # =============================================================================
 func _apply_theme() -> void:
-	# Background: pastel gradient via a full-screen ColorRect
-	if not has_node("BgRect"):
-		var bg := ColorRect.new()
-		bg.name = "BgRect"
-		bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		# Use top color as solid fill; true gradient requires GradientTexture2D
-		bg.color = C_BG_TOP
-		add_child(bg)
-		move_child(bg, 0)
-	else:
-		($BgRect as ColorRect).color = C_BG_TOP
+	# Background: paint the scene's Background rect (was dark). Pastel top color.
+	if has_node("Background"):
+		($Background as ColorRect).color = C_BG_TOP
 
-	# Style submit button as CTA (pink gradient approximated with solid fill)
+	# ── Panels as pastel glass cards ─────────────────────────────────────────
+	for node_path in ["GameLayer/GameVBox/HeaderPanel",
+			"GameLayer/GameVBox/GuessPanel",
+			"GameLayer/GameVBox/PalettePanel",
+			"MenuLayer/MenuPanel"]:
+		if has_node(node_path):
+			_style_panel_glass(get_node(node_path) as PanelContainer)
+
+	# Hide the old HistoryPanel (replaced by wordle board)
+	if has_node("GameLayer/GameVBox/HistoryPanel"):
+		($GameLayer/GameVBox/HistoryPanel as Control).visible = false
+
+	# ── Submit button: big pink CTA ──────────────────────────────────────────
 	var cta_style := StyleBoxFlat.new()
 	cta_style.bg_color = C_CTA_FROM
-	cta_style.corner_radius_top_left    = 14
-	cta_style.corner_radius_top_right   = 14
-	cta_style.corner_radius_bottom_left  = 14
-	cta_style.corner_radius_bottom_right = 14
+	cta_style.corner_radius_top_left    = 16
+	cta_style.corner_radius_top_right   = 16
+	cta_style.corner_radius_bottom_left  = 16
+	cta_style.corner_radius_bottom_right = 16
 	cta_style.shadow_color = Color(0.957, 0.447, 0.714, 0.35)
 	cta_style.shadow_size  = 14
+	var cta_pressed := cta_style.duplicate() as StyleBoxFlat
+	cta_pressed.bg_color = C_CTA_FROM.darkened(0.08)
+	var cta_hover := cta_style.duplicate() as StyleBoxFlat
+	cta_hover.bg_color = C_CTA_FROM.lightened(0.06)
 	submit_button.add_theme_stylebox_override("normal", cta_style)
+	submit_button.add_theme_stylebox_override("hover", cta_hover)
+	submit_button.add_theme_stylebox_override("pressed", cta_pressed)
 	submit_button.add_theme_color_override("font_color", Color.WHITE)
+	submit_button.add_theme_font_size_override("font_size", 26)
+	submit_button.custom_minimum_size = Vector2(0, 64)
 
-	# Secondary button style for clear/undo/hint
-	var sec_style := StyleBoxFlat.new()
-	sec_style.bg_color = Color(1.0, 1.0, 1.0, 0.75)
-	sec_style.border_color = Color(0.980, 0.659, 0.831, 0.3)
-	sec_style.border_width_left   = 1
-	sec_style.border_width_right  = 1
-	sec_style.border_width_top    = 1
-	sec_style.border_width_bottom = 1
-	sec_style.corner_radius_top_left    = 10
-	sec_style.corner_radius_top_right   = 10
-	sec_style.corner_radius_bottom_left  = 10
-	sec_style.corner_radius_bottom_right = 10
+	# ── Secondary pastel buttons (clear/undo/hint) ───────────────────────────
 	for btn in [clear_button, undo_button, hint_button]:
-		btn.add_theme_stylebox_override("normal", sec_style.duplicate())
-		btn.add_theme_color_override("font_color", C_TEXT_ACTION)
+		_style_secondary_button(btn)
 
-	# Text colors
+	# ── Home menu buttons: large pastel pills ────────────────────────────────
+	for btn in [new_game_button, how_to_play_menu_button, quit_button]:
+		_style_menu_button(btn, btn == new_game_button)
+
+	# ── Text colors ──────────────────────────────────────────────────────────
 	for lbl in [round_info_label, guess_counter_label, header_title_label]:
 		lbl.add_theme_color_override("font_color", C_TEXT_PRIMARY)
 	status_label.add_theme_color_override("font_color", C_TEXT_SECONDARY)
+
+	# Home title/subtitle
+	if has_node("MenuLayer/MenuPanel/MenuMargin/MenuVBox/TitleLabel"):
+		var tl := get_node("MenuLayer/MenuPanel/MenuMargin/MenuVBox/TitleLabel") as Label
+		tl.add_theme_color_override("font_color", C_TEXT_PRIMARY)
+		tl.add_theme_font_size_override("font_size", 44)
+	if has_node("MenuLayer/MenuPanel/MenuMargin/MenuVBox/SubtitleLabel"):
+		var sl := get_node("MenuLayer/MenuPanel/MenuMargin/MenuVBox/SubtitleLabel") as Label
+		sl.add_theme_color_override("font_color", C_TEXT_SECONDARY)
+		sl.add_theme_font_size_override("font_size", 16)
+
+	# Palette title
+	if has_node("GameLayer/GameVBox/PalettePanel/PaletteMargin/PaletteVBox/PaletteTitleLabel"):
+		var pt := get_node("GameLayer/GameVBox/PalettePanel/PaletteMargin/PaletteVBox/PaletteTitleLabel") as Label
+		pt.add_theme_color_override("font_color", C_TEXT_PRIMARY)
+		pt.add_theme_font_size_override("font_size", 18)
+
+func _style_secondary_button(btn: Button) -> void:
+	if btn == null:
+		return
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(1, 1, 1, 0.85)
+	sb.border_color = C_PANEL_BORDER
+	sb.border_width_left = 1
+	sb.border_width_right = 1
+	sb.border_width_top = 1
+	sb.border_width_bottom = 1
+	sb.corner_radius_top_left = 14
+	sb.corner_radius_top_right = 14
+	sb.corner_radius_bottom_left = 14
+	sb.corner_radius_bottom_right = 14
+	sb.content_margin_left = 14
+	sb.content_margin_right = 14
+	sb.content_margin_top = 10
+	sb.content_margin_bottom = 10
+	var hover := sb.duplicate() as StyleBoxFlat
+	hover.bg_color = Color(1, 0.95, 0.97, 1.0)
+	btn.add_theme_stylebox_override("normal", sb)
+	btn.add_theme_stylebox_override("hover", hover)
+	btn.add_theme_stylebox_override("pressed", hover)
+	btn.add_theme_color_override("font_color", C_TEXT_ACTION)
+	btn.add_theme_font_size_override("font_size", 16)
+
+func _style_menu_button(btn: Button, primary: bool) -> void:
+	if btn == null:
+		return
+	var sb := StyleBoxFlat.new()
+	if primary:
+		sb.bg_color = C_CTA_FROM
+		sb.shadow_color = Color(0.957, 0.447, 0.714, 0.35)
+		sb.shadow_size = 16
+	else:
+		sb.bg_color = Color(1, 1, 1, 0.9)
+		sb.border_color = C_PANEL_BORDER
+		sb.border_width_left = 1
+		sb.border_width_right = 1
+		sb.border_width_top = 1
+		sb.border_width_bottom = 1
+	sb.corner_radius_top_left = 18
+	sb.corner_radius_top_right = 18
+	sb.corner_radius_bottom_left = 18
+	sb.corner_radius_bottom_right = 18
+	sb.content_margin_left = 20
+	sb.content_margin_right = 20
+	sb.content_margin_top = 16
+	sb.content_margin_bottom = 16
+	var hover := sb.duplicate() as StyleBoxFlat
+	hover.bg_color = sb.bg_color.lightened(0.06) if primary else Color(1, 0.95, 0.97, 1.0)
+	btn.add_theme_stylebox_override("normal", sb)
+	btn.add_theme_stylebox_override("hover", hover)
+	btn.add_theme_stylebox_override("pressed", hover)
+	btn.add_theme_color_override("font_color", Color.WHITE if primary else C_TEXT_ACTION)
+	btn.add_theme_font_size_override("font_size", 22 if primary else 18)
+	btn.custom_minimum_size = Vector2(0, 64 if primary else 56)
 
 func _style_panel_glass(panel: PanelContainer) -> void:
 	if panel == null:
@@ -444,12 +521,13 @@ func _generate_secret(slots: int, colors: int) -> Array[int]:
 # Vocabulary — rename static labels to NEURAL GRID copy
 # =============================================================================
 func _apply_label_vocabulary() -> void:
-	submit_button.text = "SUBMIT"
-	clear_button.text  = "CLEAR"
-	undo_button.text   = "UNDO"
-	hint_button.text   = "HINT"
-	new_game_button.text         = "PLAY"
-	how_to_play_menu_button.text = "HOW TO PLAY"
+	submit_button.text = "Submit Guess"
+	clear_button.text  = "Clear"
+	undo_button.text   = "Undo"
+	hint_button.text   = "💡 Hint"
+	new_game_button.text         = "Play"
+	how_to_play_menu_button.text = "How to Play"
+	quit_button.text             = "Quit"
 	header_title_label.text      = "Guess the Dots"
 
 func _find_label(node_path: String) -> Label:
@@ -572,7 +650,7 @@ func start_new_game(mode: GameMode = GameMode.CLASSIC, campaign_level: int = 1) 
 	_build_wordle_board()
 	_update_palette_selection()
 	_refresh_guess_ui()
-	_update_header_text("TAP A COLOR TO FILL THE NEXT SLOT, OR DRAG IT IN.")
+	_update_header_text("Tap a color to fill the next dot.")
 
 	# Hide blitz ring for non-blitz modes
 	if mode != GameMode.BLITZ:
@@ -655,7 +733,7 @@ func _start_mystery_game() -> void:
 	_build_wordle_board()
 	_update_palette_selection()
 	_refresh_guess_ui()
-	_update_header_text("TAP A COLOR TO FILL THE NEXT SLOT, OR DRAG IT IN.")
+	_update_header_text("Tap a color to fill the next dot.")
 
 func _start_sudden_death_game() -> void:
 	current_mode = GameMode.SUDDEN_DEATH
@@ -691,7 +769,7 @@ func _start_sudden_death_game() -> void:
 	_build_elimination_tracker()
 	_update_palette_selection()
 	_refresh_guess_ui()
-	_update_header_text("ONE WRONG AND IT'S OVER — EVERY GUESS MUST HAVE AN EXACT.")
+	_update_header_text("One wrong and it is over.")
 
 func _start_duo_game() -> void:
 	current_mode = GameMode.DUO
@@ -744,7 +822,7 @@ func _start_duo_game() -> void:
 	_build_duo_boards()
 	_update_palette_selection()
 	_refresh_guess_ui()
-	_update_header_text("TAP A COLOR — SAME GUESS APPLIES TO BOTH CODES.")
+	_update_header_text("Tap a color — the same guess checks both codes.")
 
 func _build_duo_boards() -> void:
 	# Remove old duo container if it exists
@@ -1126,14 +1204,29 @@ func _build_blitz_ring() -> void:
 
 func _build_elimination_tracker() -> void:
 	if _tracker_container != null and is_instance_valid(_tracker_container):
-		_tracker_container.name = "_TrackerOld"
-		_tracker_container.queue_free()
+		var parent_node := _tracker_container.get_parent()
+		if parent_node != null and parent_node.name == "EliminationTracker":
+			parent_node.queue_free()
+		else:
+			_tracker_container.queue_free()
 
 	_tracker_dot_nodes.clear()
+	var wrap_vbox := VBoxContainer.new()
+	wrap_vbox.name = "EliminationTracker"
+	wrap_vbox.add_theme_constant_override("separation", 4)
+	wrap_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+
+	var label := Label.new()
+	label.text = "Color notes — tap to mark ruled out"
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.add_theme_color_override("font_color", C_TEXT_SECONDARY)
+	label.add_theme_font_size_override("font_size", 13)
+	wrap_vbox.add_child(label)
+
 	_tracker_container = HBoxContainer.new()
-	_tracker_container.name = "EliminationTracker"
 	_tracker_container.alignment = BoxContainer.ALIGNMENT_CENTER
 	_tracker_container.add_theme_constant_override("separation", 10)
+	wrap_vbox.add_child(_tracker_container)
 
 	var num_colors := 6 if current_mode == GameMode.HARD else 5
 	for i in range(num_colors):
@@ -1174,9 +1267,9 @@ func _build_elimination_tracker() -> void:
 		if child == palette_container or child.is_ancestor_of(palette_container):
 			target_idx = idx
 			break
-	game_vbox.add_child(_tracker_container)
+	game_vbox.add_child(wrap_vbox)
 	if target_idx >= 0:
-		game_vbox.move_child(_tracker_container, target_idx)
+		game_vbox.move_child(wrap_vbox, target_idx)
 
 func _update_elimination_tracker() -> void:
 	if _tracker_dot_nodes.is_empty():
@@ -1256,28 +1349,62 @@ func _build_wordle_board() -> void:
 func _build_board_row(row_index: int) -> Dictionary:
 	var hbox := HBoxContainer.new()
 	hbox.name = "BoardRow%d" % row_index
-	hbox.add_theme_constant_override("separation", 6)
+	hbox.add_theme_constant_override("separation", 10)
 	hbox.alignment = BoxContainer.ALIGNMENT_CENTER
 
 	var slots: Array = []
 	for s in range(slots_needed):
 		var slot := SlotButton.new()
 		slot.slot_index = s
-		slot.custom_minimum_size = Vector2(56, 56)
+		slot.custom_minimum_size = Vector2(54, 54)
 		hbox.add_child(slot)
 		slots.append(slot)
 
-	# Pip container (feedback dots, right side)
+	# Pip container (circular feedback dots, right side)
 	var pip_hbox := HBoxContainer.new()
-	pip_hbox.add_theme_constant_override("separation", 3)
+	pip_hbox.add_theme_constant_override("separation", 5)
+	pip_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	pip_hbox.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	pip_hbox.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	for _p in range(slots_needed):
-		var pip := ColorRect.new()
-		pip.custom_minimum_size = Vector2(10, 10)
-		pip.color = C_PIP_EMPTY
+		var pip := _make_pip_dot(C_PIP_EMPTY)
 		pip_hbox.add_child(pip)
 	hbox.add_child(pip_hbox)
 
 	return {"container": hbox, "slots": slots, "pips": pip_hbox, "index": row_index}
+
+func _make_pip_dot(color: Color) -> Control:
+	var wrap := PanelContainer.new()
+	wrap.custom_minimum_size = Vector2(16, 16)
+	wrap.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	wrap.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = color
+	sb.corner_radius_top_left = 999
+	sb.corner_radius_top_right = 999
+	sb.corner_radius_bottom_left = 999
+	sb.corner_radius_bottom_right = 999
+	sb.content_margin_left = 8
+	sb.content_margin_right = 8
+	sb.content_margin_top = 8
+	sb.content_margin_bottom = 8
+	wrap.add_theme_stylebox_override("panel", sb)
+	wrap.set_meta("pip_color", color)
+	return wrap
+
+func _set_pip_color(pip: Control, color: Color) -> void:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = color
+	sb.corner_radius_top_left = 999
+	sb.corner_radius_top_right = 999
+	sb.corner_radius_bottom_left = 999
+	sb.corner_radius_bottom_right = 999
+	sb.content_margin_left = 8
+	sb.content_margin_right = 8
+	sb.content_margin_top = 8
+	sb.content_margin_bottom = 8
+	pip.add_theme_stylebox_override("panel", sb)
+	pip.set_meta("pip_color", color)
 
 func _connect_active_row_signals() -> void:
 	if _active_row_index >= _board_rows.size():
@@ -1396,14 +1523,14 @@ func _update_pips(pip_container: HBoxContainer, exact: int, misplaced: int) -> v
 	var idx := 0
 	for _e in range(exact):
 		if idx < pips.size():
-			(pips[idx] as ColorRect).color = C_PIP_EXACT
+			_set_pip_color(pips[idx] as Control, C_PIP_EXACT)
 			idx += 1
 	for _m in range(misplaced):
 		if idx < pips.size():
-			(pips[idx] as ColorRect).color = C_PIP_MISPLACE
+			_set_pip_color(pips[idx] as Control, C_PIP_MISPLACE)
 			idx += 1
 	while idx < pips.size():
-		(pips[idx] as ColorRect).color = C_PIP_EMPTY
+		_set_pip_color(pips[idx] as Control, C_PIP_EMPTY)
 		idx += 1
 
 func _flip_row_reveal(row: Dictionary, item: Dictionary) -> void:
@@ -1461,12 +1588,29 @@ func _refresh_guess_ui() -> void:
 	hint_button.disabled   = not round_active or not AdManager.is_rewarded_ready()
 
 func _update_header_text(message: String) -> void:
+	header_title_label.text = _mode_display_name()
 	if current_mode == GameMode.CAMPAIGN:
-		round_info_label.text = "LEVEL %d  ·  %d NODES  ·  REPEATS ON" % [_current_campaign_level, slots_needed]
+		round_info_label.text = "Level %d · %d dots" % [_current_campaign_level, slots_needed]
 	else:
-		round_info_label.text = "SEQUENCE LENGTH: %d  ·  REPEATS ON" % slots_needed
-	guess_counter_label.text = "ATTEMPT %d / %d" % [guess_history.size() + 1, MAX_GUESSES]
+		round_info_label.text = "%d dots · colors can repeat" % slots_needed
+	guess_counter_label.text = "Guess %d of %d" % [guess_history.size() + 1, MAX_GUESSES]
 	status_label.text        = message
+
+func _mode_display_name() -> String:
+	match current_mode:
+		GameMode.CLASSIC:      return "Classic"
+		GameMode.BLITZ:        return "Blitz"
+		GameMode.HARD:         return "Hard"
+		GameMode.ZEN:          return "Zen"
+		GameMode.CAMPAIGN:     return "Campaign"
+		GameMode.EASY:         return "Easy"
+		GameMode.MYSTERY:      return "Mystery"
+		GameMode.TIME_TRIAL:   return "Time Trial"
+		GameMode.DUO:          return "Duo"
+		GameMode.SUDDEN_DEATH: return "Sudden Death"
+		GameMode.SANDBOX:      return "Sandbox"
+		GameMode.DAILY:        return "Daily #%d" % DailyChallenge.get_today_number()
+		_:                     return "Guess the Dots"
 
 func _update_palette_selection() -> void:
 	for index in range(palette_buttons.size()):
@@ -1493,11 +1637,11 @@ func _on_palette_dot_pressed(index: int) -> void:
 			selected_color_index = index
 			_update_palette_selection()
 			_refresh_guess_ui()
-			status_label.text = "PLACED %s INTO SLOT %d." % [str(PALETTE[index]["name"]), i + 1]
+			status_label.text = "Placed %s in slot %d." % [str(PALETTE[index]["name"]), i + 1]
 			_vibrate(18)
 			SoundManager.play("dot_place")
 			return
-	status_label.text = "SEQUENCE COMPLETE — SUBMIT OR TAP A SLOT TO CLEAR IT."
+	status_label.text = "Ready — submit, or tap a dot to clear it."
 
 func _on_slot_color_dropped(slot_index: int, color_index: int) -> void:
 	if not round_active:
@@ -1506,7 +1650,7 @@ func _on_slot_color_dropped(slot_index: int, color_index: int) -> void:
 	selected_color_index = color_index
 	_update_palette_selection()
 	_refresh_guess_ui()
-	status_label.text = "PLACED %s INTO SLOT %d." % [str(PALETTE[color_index]["name"]), slot_index + 1]
+	status_label.text = "Placed %s in slot %d." % [str(PALETTE[color_index]["name"]), slot_index + 1]
 	_vibrate(18)
 	SoundManager.play("dot_place")
 
@@ -1641,7 +1785,7 @@ func _on_submit_pressed() -> void:
 			current_guess[i] = -1
 		_refresh_guess_ui()
 		_update_palette_selection()
-		_update_header_text("LOCKED A: %d  ·  LOCKED B: %d" % [int(feedback_a["exact"]), int(feedback_b["exact"])])
+		_update_header_text("Code A in place: %d · Code B in place: %d" % [int(feedback_a["exact"]), int(feedback_b["exact"])])
 		if _duo_solved_a and _duo_solved_b:
 			_finish_game(true, "Both codes cracked!")
 		elif guess_history.size() >= MAX_GUESSES:
@@ -1729,7 +1873,7 @@ func _on_submit_pressed() -> void:
 
 	_refresh_guess_ui()
 	_update_palette_selection()
-	_update_header_text("LOCKED: %d  ·  MISALIGNED: %d" % [int(result["exact"]), int(result["misplaced"])])
+	_update_header_text("%d in place · %d wrong spot" % [int(result["exact"]), int(result["misplaced"])])
 
 	# Reaction message: show tiered feedback in status_label for continuing rounds
 	var remaining := MAX_GUESSES - guess_history.size()
@@ -2309,7 +2453,7 @@ func _apply_second_chance(sc_btn: Button, no_btn: Button, offer_lbl: Label) -> v
 		current_guess[index] = -1
 	_refresh_guess_ui()
 	_update_palette_selection()
-	_update_header_text("SECOND CHANCE GRANTED — 3 BONUS ATTEMPTS.")
+	_update_header_text("Second chance! +3 guesses.")
 
 func _on_combo_changed(count: int) -> void:
 	if _combo_label == null or not is_instance_valid(_combo_label):
@@ -3625,7 +3769,7 @@ func _resume_game() -> void:
 	_build_wordle_board()
 	_update_palette_selection()
 	_refresh_guess_ui()
-	_update_header_text("RESUMED — SEQUENCE: %d NODES  ·  %d GUESSES USED" % [slots_needed, guess_history.size()])
+	_update_header_text("Resumed — %d guess%s used" % [guess_history.size(), "" if guess_history.size() == 1 else "es"])
 
 func _show_time_trial_result() -> void:
 	var score := _time_trial_puzzles_completed * 1000 - (_time_trial_total_time_ms / 1000)
