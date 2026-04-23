@@ -81,9 +81,14 @@ func _build_shell() -> void:
 	var _card_sb := StyleBoxFlat.new()
 	_card_sb.bg_color = Color(1.0, 1.0, 1.0, 0.97)
 	_card_sb.border_color = Color("#FFD6E7")
-	_card_sb.border_width_left = _card_sb.border_width_right = _card_sb.border_width_top = _card_sb.border_width_bottom = 1
-	_card_sb.corner_radius_top_left = _card_sb.corner_radius_top_right = 24
-	_card_sb.corner_radius_bottom_left = _card_sb.corner_radius_bottom_right = 24
+	_card_sb.border_width_left = 1
+	_card_sb.border_width_right = 1
+	_card_sb.border_width_top = 1
+	_card_sb.border_width_bottom = 1
+	_card_sb.corner_radius_top_left = 24
+	_card_sb.corner_radius_top_right = 24
+	_card_sb.corner_radius_bottom_left = 24
+	_card_sb.corner_radius_bottom_right = 24
 	card.add_theme_stylebox_override("panel", _card_sb)
 	center.add_child(card)
 
