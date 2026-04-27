@@ -1,0 +1,30 @@
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+build/
+.dart_tool/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Generated
+*.g.dart
+*.freezed.dart
+
+# Firebase configs (per-environment, will be added later)
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Flutter web build output
+web/build/
+
+# pubspec lock NOT ignored — committed for reproducible builds
