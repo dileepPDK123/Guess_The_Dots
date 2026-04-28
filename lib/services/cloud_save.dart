@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -19,6 +21,7 @@ class CloudSaveService {
   final _firestore = FirebaseFirestore.instance;
   DateTime? _lastPushAt;
   bool _pendingPush = false;
+  Timer? _pendingTimer;
 
   /// Pull on app launch — call after auth ensures a UID is present.
   /// If cloud has higher total_xp_earned, hydrate local. Otherwise leave local.
@@ -55,7 +58,9 @@ class CloudSaveService {
     if (_lastPushAt != null &&
         now.difference(_lastPushAt!) < const Duration(seconds: 10)) {
       _pendingPush = true;
-      Future.delayed(const Duration(seconds: 10), () {
+      // Cancel any existing timer to prevent multiple concurrent retries.
+      _pendingTimer?.cancel();
+      _pendingTimer = Timer(const Duration(seconds: 10), () {
         if (_pendingPush) {
           _pendingPush = false;
           push();
@@ -63,6 +68,8 @@ class CloudSaveService {
       });
       return;
     }
+    _pendingTimer?.cancel();
+    _pendingTimer = null;
     _lastPushAt = now;
     try {
       final state = _ref.read(playerProvider);

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart' as gma;
@@ -55,7 +57,7 @@ class AdsService {
   Future<bool> showInterstitial() async {
     if (kIsWeb || removeAdsEntitled) return false;
     await ensureInitialized();
-    final completer = _Completer<bool>();
+    final completer = Completer<bool>();
     gma.InterstitialAd.load(
       adUnitId: interstitialUnitId,
       request: const gma.AdRequest(),
@@ -83,7 +85,7 @@ class AdsService {
   Future<bool> showRewarded() async {
     if (kIsWeb) return false;
     await ensureInitialized();
-    final completer = _Completer<bool>();
+    final completer = Completer<bool>();
     var earned = false;
     gma.RewardedAd.load(
       adUnitId: rewardedUnitId,
@@ -109,32 +111,5 @@ class AdsService {
   }
 }
 
-/// Lightweight Future-completer to avoid pulling in `dart:async`'s Completer
-/// imports at multiple call sites.
-class _Completer<T> {
-  final _c = <Function(T)>[];
-  T? _value;
-  bool _done = false;
-
-  Future<T> get future {
-    if (_done) return Future.value(_value as T);
-    return Future(() async {
-      while (!_done) {
-        await Future.delayed(const Duration(milliseconds: 80));
-      }
-      return _value as T;
-    });
-  }
-
-  void complete(T value) {
-    if (_done) return;
-    _done = true;
-    _value = value;
-    for (final cb in _c) {
-      cb(value);
-    }
-    _c.clear();
-  }
-}
 
 final adsProvider = Provider<AdsService>((_) => AdsService());

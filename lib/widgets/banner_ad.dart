@@ -27,11 +27,12 @@ class _AppBannerAdState extends ConsumerState<AppBannerAd> {
 
   Future<void> _load(AdsService ads) async {
     await ads.ensureInitialized();
+    if (!mounted) return; // widget disposed before SDK init finished
     final ad = BannerAd(
       size: AdSize.banner,
       adUnitId: ads.bannerUnitId,
       listener: BannerAdListener(
-        onAdLoaded: (_) => setState(() {}),
+        onAdLoaded: (_) { if (mounted) setState(() {}); },
         onAdFailedToLoad: (ad, err) => ad.dispose(),
       ),
       request: const AdRequest(),
@@ -39,6 +40,8 @@ class _AppBannerAdState extends ConsumerState<AppBannerAd> {
     await ad.load();
     if (mounted) {
       setState(() => _ad = ad);
+    } else {
+      ad.dispose(); // widget disposed while ad was loading — clean up
     }
   }
 

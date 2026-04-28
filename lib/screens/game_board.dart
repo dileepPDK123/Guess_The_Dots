@@ -67,7 +67,9 @@ class _GameBoardScreenState extends ConsumerState<GameBoardScreen> {
         gameState: s,
         onPlayAgain: () {
           if (!mounted) return;
-          setState(() => _resultShown = false);
+          // Start the new game first (which clears result) BEFORE clearing
+          // _resultShown, to prevent a re-entry window where build() sees
+          // a non-null result with _resultShown==false.
           ref
               .read(gameNotifierProvider.notifier)
               .start(m: widget.mode, withSeed: widget.seed);
@@ -77,6 +79,7 @@ class _GameBoardScreenState extends ConsumerState<GameBoardScreen> {
               ref.read(gameNotifierProvider.notifier).tickTimer();
             });
           }
+          setState(() => _resultShown = false);
         },
         onMenu: () {
           if (!mounted) return;
@@ -105,7 +108,8 @@ class _GameBoardScreenState extends ConsumerState<GameBoardScreen> {
             children: [
               _Header(mode: widget.mode, state: state),
               const SizedBox(height: 8),
-              if (widget.mode.timerSeconds != null) _BlitzTimer(state: state),
+              if (widget.mode.timerSeconds != null)
+                _BlitzTimer(state: state, totalSeconds: widget.mode.timerSeconds!),
               _StatusLine(state: state),
               const SizedBox(height: 16),
               Expanded(
@@ -142,23 +146,23 @@ class _GameBoardScreenState extends ConsumerState<GameBoardScreen> {
   }
 
   Future<void> _onHint(BuildContext context) async {
+    final notifier = ref.read(gameNotifierProvider.notifier);
     final p = ref.read(playerProvider.notifier);
     final hasToken = ref.read(playerProvider).hintTokens > 0;
     if (hasToken) {
-      if (p.spendHint()) {
-        ref.read(gameNotifierProvider.notifier).useHint();
-      }
+      // Apply the hint first — only charge the token if a slot was actually
+      // revealed. Prevents silently wasting tokens in Hard mode when all
+      // unlocked slots are already filled.
+      final revealed = notifier.useHint();
+      if (revealed) p.spendHint();
       return;
     }
+    // No tokens — offer a rewarded ad instead.
     final ads = ref.read(adsProvider);
     final earned = await ads.showRewarded();
     if (!mounted) return;
-    if (earned) {
-      ref.read(gameNotifierProvider.notifier).useHint();
-    } else {
-      // Web fallback / ad failed: still grant the hint in dev / fallback.
-      ref.read(gameNotifierProvider.notifier).useHint();
-    }
+    if (earned) notifier.useHint();
+    // If not earned, do nothing — no free hint on ad failure in production.
   }
 }
 
@@ -208,14 +212,16 @@ class _Header extends StatelessWidget {
 
 class _BlitzTimer extends StatelessWidget {
   final GameState state;
-  const _BlitzTimer({required this.state});
+  final int totalSeconds;
+  const _BlitzTimer({required this.state, required this.totalSeconds});
 
   @override
   Widget build(BuildContext context) {
     final v = context.velvet;
     final remaining = state.secondsRemaining ?? 0;
-    final total = 90; // Blitz default; could read from mode
-    final pct = (remaining / total).clamp(0.0, 1.0);
+    final pct = totalSeconds > 0
+        ? (remaining / totalSeconds).clamp(0.0, 1.0)
+        : 0.0;
     final critical = remaining <= 15;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),

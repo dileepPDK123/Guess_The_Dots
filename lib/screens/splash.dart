@@ -32,6 +32,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   }
 
   Future<void> _bootstrap() async {
+    // Ensure local prefs are loaded before comparing with cloud data.
+    // Without this, cloud.pull() always sees XP=0 and overwrites local.
+    await ref.read(playerProvider.notifier).ensureLoaded;
+
     // Best-effort cloud bootstrap — never blocks navigation.
     final auth = ref.read(authServiceProvider);
     final cloud = ref.read(cloudSaveProvider);

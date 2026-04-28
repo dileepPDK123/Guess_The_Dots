@@ -9,7 +9,7 @@ import '../theme/app_text.dart';
 import '../theme/royal_velvet.dart';
 
 /// Bottom sheet — "Pick Your Puzzle".
-class ModeSelectSheet extends ConsumerWidget {
+class ModeSelectSheet extends ConsumerStatefulWidget {
   final void Function(GameMode mode, {int? seed}) onPick;
 
   const ModeSelectSheet({super.key, required this.onPick});
@@ -26,7 +26,22 @@ class ModeSelectSheet extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ModeSelectSheet> createState() => _ModeSelectSheetState();
+}
+
+class _ModeSelectSheetState extends ConsumerState<ModeSelectSheet> {
+  /// Guards against double-tap racing before the sheet animation closes.
+  bool _picked = false;
+
+  void _pick(GameMode mode, {int? seed}) {
+    if (_picked) return;
+    _picked = true;
+    Navigator.of(context).pop();
+    widget.onPick(mode, seed: seed);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final v = context.velvet;
     final player = ref.watch(playerProvider);
     final dailyDone = ref.read(playerProvider.notifier).isDailyDoneToday();
@@ -86,10 +101,7 @@ class ModeSelectSheet extends ConsumerWidget {
                       streak: player.dailyStreak,
                       onTap: dailyDone
                           ? null
-                          : () {
-                              Navigator.of(context).pop();
-                              onPick(GameModes.daily, seed: dailySeed());
-                            },
+                          : () => _pick(GameModes.daily, seed: dailySeed()),
                     ),
                     const SizedBox(height: 12),
                     // Weekly hero
@@ -97,10 +109,7 @@ class ModeSelectSheet extends ConsumerWidget {
                       mode: GameModes.weekly,
                       done: false,
                       streak: 0,
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        onPick(GameModes.weekly, seed: weeklySeed());
-                      },
+                      onTap: () => _pick(GameModes.weekly, seed: weeklySeed()),
                     ),
                     const SizedBox(height: 22),
                     Text("More Ways to Play",
@@ -119,10 +128,7 @@ class ModeSelectSheet extends ConsumerWidget {
                             mode: m,
                             unlocked:
                                 !m.locked || player.level >= 10,
-                            onTap: () {
-                              Navigator.of(context).pop();
-                              onPick(m);
-                            },
+                            onTap: () => _pick(m),
                           ),
                       ],
                     ),

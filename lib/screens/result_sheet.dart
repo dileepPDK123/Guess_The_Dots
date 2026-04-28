@@ -75,6 +75,7 @@ class _ResultSheetState extends ConsumerState<ResultSheet> {
   int _xpAwarded = 0;
   int _coinsAwarded = 0;
   int _newLevel = 0;
+  bool _awarded = false; // guard against duplicate invocation on hot-reload
 
   @override
   void initState() {
@@ -83,6 +84,8 @@ class _ResultSheetState extends ConsumerState<ResultSheet> {
   }
 
   void _award() {
+    if (_awarded) return;
+    _awarded = true;
     final p = ref.read(playerProvider.notifier);
     final won = widget.gameState.result == GameResult.win;
     final xp = won ? widget.mode.xp : widget.mode.xp ~/ 4;
@@ -132,7 +135,8 @@ class _ResultSheetState extends ConsumerState<ResultSheet> {
         p.recordCampaignStars(levelNum, stars);
       }
     }
-    ref.read(cloudSaveProvider).push();
+    // Fire-and-forget push; errors are suppressed per project policy.
+    ref.read(cloudSaveProvider).push().catchError((_) {});
     if (mounted) {
       setState(() {
         _xpAwarded = xp;
@@ -502,9 +506,11 @@ class _ShareCard extends StatelessWidget {
                   onPressed: () async {
                     await Clipboard.setData(ClipboardData(text: headline));
                     if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Copied to clipboard')),
-                      );
+                      ScaffoldMessenger.of(context)
+                        ..hideCurrentSnackBar()
+                        ..showSnackBar(
+                          const SnackBar(content: Text('Copied to clipboard')),
+                        );
                     }
                   },
                 ),

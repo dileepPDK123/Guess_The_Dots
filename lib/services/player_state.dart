@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -166,8 +167,14 @@ class PlayerState {
       perMode: ((j['perMode'] as Map?) ?? {}).map(
         (k, v) => MapEntry(k as String, ModeStats.fromJson(v as Map)),
       ),
-      campaignStars: ((j['campaignStars'] as Map?) ?? {}).map(
-        (k, v) => MapEntry(int.tryParse(k.toString()) ?? 0, (v as num).toInt()),
+      campaignStars: Map.fromEntries(
+        ((j['campaignStars'] as Map?) ?? {}).entries.where((e) {
+          final k = int.tryParse(e.key.toString());
+          return k != null && k > 0;
+        }).map((e) => MapEntry(
+              int.parse(e.key.toString()),
+              (e.value as num).toInt(),
+            )),
       ),
       recentGames: ((j['recentGames'] as List?) ?? [])
           .map((g) => RecentGame.fromJson(g as Map))
@@ -278,6 +285,7 @@ const _kPrefsKey = 'gtd.playerState.v1';
 
 class PlayerNotifier extends Notifier<PlayerState> {
   SharedPreferences? _prefs;
+  final _loadCompleter = Completer<void>();
 
   @override
   PlayerState build() {
@@ -295,7 +303,13 @@ class PlayerNotifier extends Notifier<PlayerState> {
         // leave default empty
       }
     }
+    if (!_loadCompleter.isCompleted) _loadCompleter.complete();
   }
+
+  /// Resolves when the initial [SharedPreferences] load has completed.
+  /// Await this before reading state in contexts that run before the first
+  /// widget frame (e.g., cloud-save pull on splash).
+  Future<void> get ensureLoaded => _loadCompleter.future;
 
   Future<void> _save() async {
     final p = _prefs;
