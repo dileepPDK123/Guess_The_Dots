@@ -11,6 +11,7 @@ import '../theme/royal_velvet.dart';
 import '../widgets/buttons.dart';
 import '../widgets/guess_row.dart';
 import '../widgets/palette.dart';
+import 'result_sheet.dart';
 
 class GameBoardScreen extends ConsumerStatefulWidget {
   final GameMode mode;
@@ -23,6 +24,8 @@ class GameBoardScreen extends ConsumerStatefulWidget {
 }
 
 class _GameBoardScreenState extends ConsumerState<GameBoardScreen> {
+  bool _resultShown = false;
+
   @override
   void initState() {
     super.initState();
@@ -32,10 +35,35 @@ class _GameBoardScreenState extends ConsumerState<GameBoardScreen> {
     });
   }
 
+  void _maybeShowResult(GameState s) {
+    if (_resultShown || s.result == null) return;
+    _resultShown = true;
+    Future.delayed(const Duration(milliseconds: 700), () {
+      if (!mounted) return;
+      ResultSheet.show(
+        context,
+        mode: widget.mode,
+        gameState: s,
+        onPlayAgain: () {
+          if (!mounted) return;
+          setState(() => _resultShown = false);
+          ref
+              .read(gameNotifierProvider.notifier)
+              .start(m: widget.mode, withSeed: widget.seed);
+        },
+        onMenu: () {
+          if (!mounted) return;
+          Navigator.of(context).maybePop();
+        },
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(gameNotifierProvider);
     final notifier = ref.read(gameNotifierProvider.notifier);
+    _maybeShowResult(state);
 
     return Scaffold(
       body: SafeArea(

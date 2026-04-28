@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'screens/home.dart';
+import 'screens/splash.dart';
 import 'theme/build_theme.dart';
 
 void main() {
@@ -24,7 +24,7 @@ class GuessTheDotsApp extends StatelessWidget {
       title: 'Guess the Dots',
       theme: buildAppTheme(),
       debugShowCheckedModeBanner: false,
-      home: const HomeScreen(),
+      home: const SplashScreen(),
     );
   }
 }
