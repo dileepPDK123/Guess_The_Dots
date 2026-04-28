@@ -12,10 +12,14 @@ class PlayerState {
   final int totalXpEarned;
   final int level;
   final int coins;
+  final int hintTokens;
+  final int streakShields;
+  final bool removeAdsEntitled;
   final int dailyStreak;
   final int dailyMaxStreak;
   final String dailyLastDate; // YYYY-MM-DD UTC
   final Map<String, ModeStats> perMode;
+  final Map<int, int> campaignStars; // levelNum (1-100) -> stars (0-3)
   final List<RecentGame> recentGames;
   final bool tutorialSeen;
   final bool hapticsEnabled;
@@ -27,10 +31,14 @@ class PlayerState {
     required this.totalXpEarned,
     required this.level,
     required this.coins,
+    required this.hintTokens,
+    required this.streakShields,
+    required this.removeAdsEntitled,
     required this.dailyStreak,
     required this.dailyMaxStreak,
     required this.dailyLastDate,
     required this.perMode,
+    required this.campaignStars,
     required this.recentGames,
     required this.tutorialSeen,
     required this.hapticsEnabled,
@@ -43,10 +51,14 @@ class PlayerState {
         totalXpEarned: 0,
         level: 1,
         coins: 0,
+        hintTokens: 3, // generous starter pack
+        streakShields: 1,
+        removeAdsEntitled: false,
         dailyStreak: 0,
         dailyMaxStreak: 0,
         dailyLastDate: '',
         perMode: {},
+        campaignStars: {},
         recentGames: [],
         tutorialSeen: false,
         hapticsEnabled: true,
@@ -83,10 +95,14 @@ class PlayerState {
     int? totalXpEarned,
     int? level,
     int? coins,
+    int? hintTokens,
+    int? streakShields,
+    bool? removeAdsEntitled,
     int? dailyStreak,
     int? dailyMaxStreak,
     String? dailyLastDate,
     Map<String, ModeStats>? perMode,
+    Map<int, int>? campaignStars,
     List<RecentGame>? recentGames,
     bool? tutorialSeen,
     bool? hapticsEnabled,
@@ -98,10 +114,14 @@ class PlayerState {
       totalXpEarned: totalXpEarned ?? this.totalXpEarned,
       level: level ?? this.level,
       coins: coins ?? this.coins,
+      hintTokens: hintTokens ?? this.hintTokens,
+      streakShields: streakShields ?? this.streakShields,
+      removeAdsEntitled: removeAdsEntitled ?? this.removeAdsEntitled,
       dailyStreak: dailyStreak ?? this.dailyStreak,
       dailyMaxStreak: dailyMaxStreak ?? this.dailyMaxStreak,
       dailyLastDate: dailyLastDate ?? this.dailyLastDate,
       perMode: perMode ?? this.perMode,
+      campaignStars: campaignStars ?? this.campaignStars,
       recentGames: recentGames ?? this.recentGames,
       tutorialSeen: tutorialSeen ?? this.tutorialSeen,
       hapticsEnabled: hapticsEnabled ?? this.hapticsEnabled,
@@ -115,13 +135,16 @@ class PlayerState {
         'totalXpEarned': totalXpEarned,
         'level': level,
         'coins': coins,
+        'hintTokens': hintTokens,
+        'streakShields': streakShields,
+        'removeAdsEntitled': removeAdsEntitled,
         'dailyStreak': dailyStreak,
         'dailyMaxStreak': dailyMaxStreak,
         'dailyLastDate': dailyLastDate,
-        'perMode':
-            perMode.map((k, v) => MapEntry(k, v.toJson())),
-        'recentGames':
-            recentGames.map((g) => g.toJson()).toList(),
+        'perMode': perMode.map((k, v) => MapEntry(k, v.toJson())),
+        'campaignStars':
+            campaignStars.map((k, v) => MapEntry(k.toString(), v)),
+        'recentGames': recentGames.map((g) => g.toJson()).toList(),
         'tutorialSeen': tutorialSeen,
         'hapticsEnabled': hapticsEnabled,
         'soundEnabled': soundEnabled,
@@ -134,11 +157,17 @@ class PlayerState {
       totalXpEarned: (j['totalXpEarned'] as int?) ?? 0,
       level: (j['level'] as int?) ?? 1,
       coins: (j['coins'] as int?) ?? 0,
+      hintTokens: (j['hintTokens'] as int?) ?? 0,
+      streakShields: (j['streakShields'] as int?) ?? 0,
+      removeAdsEntitled: (j['removeAdsEntitled'] as bool?) ?? false,
       dailyStreak: (j['dailyStreak'] as int?) ?? 0,
       dailyMaxStreak: (j['dailyMaxStreak'] as int?) ?? 0,
       dailyLastDate: (j['dailyLastDate'] as String?) ?? '',
       perMode: ((j['perMode'] as Map?) ?? {}).map(
         (k, v) => MapEntry(k as String, ModeStats.fromJson(v as Map)),
+      ),
+      campaignStars: ((j['campaignStars'] as Map?) ?? {}).map(
+        (k, v) => MapEntry(int.tryParse(k.toString()) ?? 0, (v as num).toInt()),
       ),
       recentGames: ((j['recentGames'] as List?) ?? [])
           .map((g) => RecentGame.fromJson(g as Map))
@@ -327,26 +356,75 @@ class PlayerNotifier extends Notifier<PlayerState> {
   }
 
   /// Returns the new streak count after recording today's daily.
+  /// If the player loses but has a Streak Shield, one shield is consumed and
+  /// the streak survives (counts as a win for streak purposes only — no XP).
   int recordDaily({required bool didWin}) {
     final today = _todayUtc();
     if (state.dailyLastDate == today) return state.dailyStreak; // already done
     final yest = _yesterdayUtc();
+
+    var effectiveDidWin = didWin;
+    var consumedShield = false;
+    if (!didWin && state.streakShields > 0) {
+      // Only consume a shield if we'd actually break a streak (>=1 currently).
+      if (state.dailyStreak > 0) {
+        consumedShield = true;
+        effectiveDidWin = true;
+      }
+    }
+
     int newStreak;
-    if (didWin) {
+    if (effectiveDidWin) {
       newStreak = (state.dailyLastDate == yest || state.dailyLastDate.isEmpty)
           ? state.dailyStreak + 1
           : 1;
     } else {
       newStreak = 0;
     }
-    final newMax = newStreak > state.dailyMaxStreak ? newStreak : state.dailyMaxStreak;
+    final newMax =
+        newStreak > state.dailyMaxStreak ? newStreak : state.dailyMaxStreak;
     state = state.copyWith(
       dailyStreak: newStreak,
       dailyMaxStreak: newMax,
       dailyLastDate: today,
+      streakShields:
+          consumedShield ? state.streakShields - 1 : state.streakShields,
     );
     _save();
     return newStreak;
+  }
+
+  /// Record stars earned on a Campaign level. Only stores the higher value.
+  void recordCampaignStars(int level, int stars) {
+    final current = state.campaignStars[level] ?? 0;
+    if (stars <= current) return;
+    final newMap = Map<int, int>.from(state.campaignStars);
+    newMap[level] = stars;
+    state = state.copyWith(campaignStars: newMap);
+    _save();
+  }
+
+  /// Try to spend one hint token. Returns true on success.
+  bool spendHint() {
+    if (state.hintTokens <= 0) return false;
+    state = state.copyWith(hintTokens: state.hintTokens - 1);
+    _save();
+    return true;
+  }
+
+  void grantHints(int n) {
+    state = state.copyWith(hintTokens: state.hintTokens + n);
+    _save();
+  }
+
+  void grantShields(int n) {
+    state = state.copyWith(streakShields: state.streakShields + n);
+    _save();
+  }
+
+  void setRemoveAdsEntitled(bool v) {
+    state = state.copyWith(removeAdsEntitled: v);
+    _save();
   }
 
   bool isDailyDoneToday() => state.dailyLastDate == _todayUtc();

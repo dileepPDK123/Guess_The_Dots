@@ -3,6 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../game/feedback.dart';
 import '../theme/app_motion.dart';
+import '../theme/royal_velvet.dart';
 import 'dot_slot.dart';
 import 'feedback_pip_row.dart';
 
@@ -13,32 +14,53 @@ class GuessRow extends StatelessWidget {
   /// 1-indexed colors; null = empty.
   final List<int?> guess;
   final PipFeedback? feedback;
+  final PipFeedback? secondFeedback; // Duo only
+  final PerDotFeedback? perDotFeedback; // Easy only
   final RowState rowState;
   final int slotCount;
   final int? activeSlotIndex;
   final ValueChanged<int>? onSlotTap;
+  final Set<int> lockedSlots; // Hard / hint
   final DotStyle dotStyle;
 
   const GuessRow({
     super.key,
     required this.guess,
     required this.feedback,
+    this.secondFeedback,
+    this.perDotFeedback,
     required this.rowState,
     required this.slotCount,
     this.activeSlotIndex,
     this.onSlotTap,
+    this.lockedSlots = const {},
     this.dotStyle = DotStyle.gem,
   });
 
   @override
   Widget build(BuildContext context) {
+    final v = context.velvet;
     final size = _slotSize(slotCount);
+
+    Color? ringFor(int i) {
+      if (perDotFeedback == null || rowState != RowState.past) return null;
+      if (i >= perDotFeedback!.length) return null;
+      switch (perDotFeedback![i]) {
+        case 'exact':
+          return v.pipGreen;
+        case 'misplaced':
+          return v.pipYellow;
+        default:
+          return null;
+      }
+    }
 
     Widget row = Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         ...List.generate(slotCount, (i) {
           final color = i < guess.length ? guess[i] : null;
+          final isLocked = lockedSlots.contains(i);
           SlotState slotState;
           if (rowState == RowState.future) {
             slotState = SlotState.empty;
@@ -55,9 +77,11 @@ class GuessRow extends StatelessWidget {
             size: size,
             style: dotStyle,
             state: slotState,
+            ring: ringFor(i),
+            locked: isLocked && color != null,
           );
 
-          if (rowState == RowState.active && onSlotTap != null) {
+          if (rowState == RowState.active && onSlotTap != null && !isLocked) {
             dot = GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: () => onSlotTap!(i),
@@ -65,8 +89,6 @@ class GuessRow extends StatelessWidget {
             );
           }
 
-          // Pop animation only fires when the dot just got placed (color non-null
-          // and the row is active). Implemented via animate-on-key-change.
           if (color != null && rowState == RowState.active) {
             dot = dot.animate(key: ValueKey('${color}_$i'))
               .scale(
@@ -84,10 +106,13 @@ class GuessRow extends StatelessWidget {
         }),
         const SizedBox(width: 12),
         FeedbackPipRow(feedback: feedback, slotCount: slotCount),
+        if (secondFeedback != null) ...[
+          const SizedBox(width: 4),
+          FeedbackPipRow(feedback: secondFeedback, slotCount: slotCount),
+        ],
       ],
     );
 
-    // Past rows fade slightly; future rows fade more and use dashed look.
     double opacity = 1;
     if (rowState == RowState.past) opacity = 0.9;
     if (rowState == RowState.future) opacity = 0.45;

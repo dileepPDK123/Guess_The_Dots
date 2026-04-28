@@ -55,3 +55,37 @@ PipFeedback computeFeedback(List<int> guess, List<int> secret) {
 
   return PipFeedback(green: green, yellow: yellow);
 }
+
+/// Per-dot feedback used by Easy mode. One string per slot:
+///   'exact' | 'misplaced' | 'absent'
+typedef PerDotFeedback = List<String>;
+
+/// Per-dot feedback for Easy mode. Each guess slot returns:
+///   'exact'     — that slot matches the secret
+///   'misplaced' — that color is in the secret but at a different slot
+///   'absent'    — that color isn't in the secret (after consuming exacts)
+///
+/// Yellow assignment uses the same "consume secret-remaining once" rule as
+/// [computeFeedback] so the two are always consistent.
+PerDotFeedback computePerDot(List<int> guess, List<int> secret) {
+  assert(guess.length == secret.length);
+  final n = secret.length;
+  final out = List<String>.filled(n, 'absent');
+  final remaining = <int, int>{};
+  for (var i = 0; i < n; i++) {
+    if (guess[i] == secret[i]) {
+      out[i] = 'exact';
+    } else {
+      remaining[secret[i]] = (remaining[secret[i]] ?? 0) + 1;
+    }
+  }
+  for (var i = 0; i < n; i++) {
+    if (out[i] == 'exact') continue;
+    final left = remaining[guess[i]] ?? 0;
+    if (left > 0) {
+      out[i] = 'misplaced';
+      remaining[guess[i]] = left - 1;
+    }
+  }
+  return out;
+}

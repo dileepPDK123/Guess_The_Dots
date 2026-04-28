@@ -15,9 +15,16 @@ class CampaignScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final v = context.velvet;
-    ref.watch(playerProvider); // ensure rebuild on level change
-    // For v1 we don't track per-level stars yet — placeholder progress = 0.
-    final unlockedThrough = 1; // first level always unlocked
+    final p = ref.watch(playerProvider);
+    final stars = p.campaignStars;
+    final totalStars = stars.values.fold<int>(0, (a, b) => a + b);
+    // Highest level the player has any score on; next one is unlocked too.
+    var highest = 0;
+    for (final lvl in stars.keys) {
+      if (lvl > highest) highest = lvl;
+    }
+    final unlockedThrough = (highest + 1).clamp(1, 100);
+
     return Scaffold(
       backgroundColor: v.bg1,
       appBar: AppBar(
@@ -59,7 +66,7 @@ class CampaignScreen extends ConsumerWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('0 / 300 stars',
+                    Text('$totalStars / 300 stars',
                         style: AppText.title(color: v.text1)),
                     const SizedBox(height: 2),
                     Text('Earn 3 stars per level',
@@ -80,12 +87,12 @@ class CampaignScreen extends ConsumerWidget {
               for (var i = 1; i <= 100; i++)
                 _LevelTile(
                   level: i,
-                  state: i == 1
+                  state: i == unlockedThrough && (stars[i] ?? 0) == 0
                       ? _LevelState.current
                       : i <= unlockedThrough
                           ? _LevelState.done
                           : _LevelState.locked,
-                  stars: 0,
+                  stars: stars[i] ?? 0,
                   onTap: i <= unlockedThrough
                       ? () {
                           Navigator.of(context).push(
@@ -136,9 +143,7 @@ class _LevelTile extends StatelessWidget {
           aspectRatio: 1,
           child: Container(
             decoration: BoxDecoration(
-              color: isCurrent
-                  ? null
-                  : (isLocked ? v.bg2 : v.bg3),
+              color: isCurrent ? null : (isLocked ? v.bg2 : v.bg3),
               gradient: isCurrent
                   ? LinearGradient(
                       colors: [v.accent, Color.lerp(v.accent, v.accent2, 0.4)!],
@@ -160,19 +165,18 @@ class _LevelTile extends StatelessWidget {
                           Text('$level',
                               style: AppText.title(color: v.text1)
                                   .copyWith(fontSize: 16)),
-                          if (state == _LevelState.done)
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: List.generate(3, (i) {
-                                return Icon(
-                                  Icons.star_rounded,
-                                  size: 9,
-                                  color: i < stars
-                                      ? v.accent2
-                                      : Colors.white.withValues(alpha: 0.18),
-                                );
-                              }),
-                            ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: List.generate(3, (i) {
+                              return Icon(
+                                Icons.star_rounded,
+                                size: 9,
+                                color: i < stars
+                                    ? v.accent2
+                                    : Colors.white.withValues(alpha: 0.18),
+                              );
+                            }),
+                          ),
                         ],
                       ),
               ),

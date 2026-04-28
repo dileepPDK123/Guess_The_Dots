@@ -10,6 +10,7 @@ import '../game/game_state.dart';
 import '../game/modes.dart';
 import '../game/share_grid.dart';
 import '../game/seeded_rng.dart';
+import '../services/ads_service.dart';
 import '../services/cloud_save.dart';
 import '../services/leaderboard.dart';
 import '../services/player_state.dart';
@@ -23,24 +24,30 @@ import '../widgets/dot_slot.dart';
 /// share-grid, level progress, and Play Again / Menu actions.
 class ResultSheet extends ConsumerStatefulWidget {
   final GameMode mode;
+  final int? seed; // for campaign: the level number is encodable from seed
   final GameState gameState;
   final VoidCallback onPlayAgain;
   final VoidCallback onMenu;
+  final VoidCallback onSecondChance;
 
   const ResultSheet({
     super.key,
     required this.mode,
+    required this.seed,
     required this.gameState,
     required this.onPlayAgain,
     required this.onMenu,
+    required this.onSecondChance,
   });
 
   static Future<void> show(
     BuildContext context, {
     required GameMode mode,
+    required int? seed,
     required GameState gameState,
     required VoidCallback onPlayAgain,
     required VoidCallback onMenu,
+    required VoidCallback onSecondChance,
   }) {
     return showModalBottomSheet(
       context: context,
@@ -51,9 +58,11 @@ class ResultSheet extends ConsumerStatefulWidget {
       enableDrag: false,
       builder: (_) => ResultSheet(
         mode: mode,
+        seed: seed,
         gameState: gameState,
         onPlayAgain: onPlayAgain,
         onMenu: onMenu,
+        onSecondChance: onSecondChance,
       ),
     );
   }
@@ -90,7 +99,6 @@ class _ResultSheetState extends ConsumerState<ResultSheet> {
     );
     if (widget.mode.id == 'daily') {
       p.recordDaily(didWin: won);
-      // Submit to leaderboard + push cloud save (silent).
       final today = _utcToday();
       final lb = ref.read(leaderboardProvider);
       lb.submitDaily(
@@ -103,6 +111,26 @@ class _ResultSheetState extends ConsumerState<ResultSheet> {
             : 0,
         solved: won,
       );
+    }
+
+    // Campaign: record stars (3 if won in <= guesses/2, 2 if <=3/4, 1 otherwise; 0 on loss)
+    if (widget.mode.id == 'campaign' && widget.seed != null) {
+      final levelNum = widget.seed! ~/ 1000003;
+      var stars = 0;
+      if (won) {
+        final used = widget.gameState.activeRow + 1;
+        final maxG = widget.gameState.guesses;
+        if (used <= (maxG / 2).ceil()) {
+          stars = 3;
+        } else if (used <= (maxG * 3 / 4).ceil()) {
+          stars = 2;
+        } else {
+          stars = 1;
+        }
+      }
+      if (levelNum >= 1 && levelNum <= 100 && stars > 0) {
+        p.recordCampaignStars(levelNum, stars);
+      }
     }
     ref.read(cloudSaveProvider).push();
     if (mounted) {
@@ -186,6 +214,19 @@ class _ResultSheetState extends ConsumerState<ResultSheet> {
                     else
                       const SizedBox.shrink(),
                     const SizedBox(height: 18),
+                    if (!won)
+                      _SecondChanceCard(
+                        onWatchAd: () async {
+                          final navigator = Navigator.of(context);
+                          final ads = ref.read(adsProvider);
+                          final earned = await ads.showRewarded();
+                          ignore(earned);
+                          if (!mounted) return;
+                          navigator.pop();
+                          widget.onSecondChance();
+                        },
+                      ),
+                    if (!won) const SizedBox(height: 12),
                     _ShareCard(
                       mode: widget.mode,
                       gameState: widget.gameState,
@@ -588,3 +629,46 @@ class _ConfettiPainter extends CustomPainter {
   @override
   bool shouldRepaint(_ConfettiPainter old) => old.t != t;
 }
+
+/// Loss-only "second chance" CTA card — watch a rewarded ad for +3 guesses.
+class _SecondChanceCard extends StatelessWidget {
+  final Future<void> Function() onWatchAd;
+  const _SecondChanceCard({required this.onWatchAd});
+
+  @override
+  Widget build(BuildContext context) {
+    final v = context.velvet;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: v.accentSoft,
+        borderRadius: BorderRadius.circular(AppRadii.md),
+        border: Border.all(color: v.accent.withValues(alpha: 0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.refresh_rounded, color: v.accent, size: 22),
+              const SizedBox(width: 10),
+              Text('One more shot?', style: AppText.title(color: v.text1)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text('Watch an ad for 3 bonus guesses.',
+              style: AppText.caption(color: v.text2)),
+          const SizedBox(height: 12),
+          PrimaryButton(
+            label: 'Watch ad — +3 guesses',
+            flexFill: true,
+            leadingIcon: Icons.play_arrow_rounded,
+            onPressed: () => onWatchAd(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+void ignore(Object? _) {}

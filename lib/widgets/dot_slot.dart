@@ -23,6 +23,8 @@ class DotSlot extends StatelessWidget {
   final SlotState state;
   final bool ruledOut; // notes strip: shows X overlay + grayscale
   final String? colorblindGlyph; // overlay glyph (●■▲◆★✕) when colorblind on
+  final Color? ring; // per-dot ring (Easy hint: green/yellow/grey)
+  final bool locked; // Hard / hint: shows a small lock badge
 
   const DotSlot({
     super.key,
@@ -32,6 +34,8 @@ class DotSlot extends StatelessWidget {
     this.state = SlotState.filled,
     this.ruledOut = false,
     this.colorblindGlyph,
+    this.ring,
+    this.locked = false,
   });
 
   @override
@@ -94,6 +98,48 @@ class DotSlot extends StatelessWidget {
             child: dot,
           ),
           Icon(Icons.close_rounded, size: size * 0.55, color: v.text2),
+        ],
+      );
+    }
+
+    if (ring != null) {
+      // Adds a ring around the dot (Easy hint: green=exact, yellow=misplaced)
+      dot = Container(
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: ring!, width: 2.5),
+          boxShadow: [
+            BoxShadow(color: ring!.withValues(alpha: 0.4), blurRadius: 6),
+          ],
+        ),
+        child: dot,
+      );
+    }
+
+    if (locked) {
+      dot = Stack(
+        clipBehavior: Clip.none,
+        children: [
+          dot,
+          Positioned(
+            top: -2,
+            right: -2,
+            child: Container(
+              width: size * 0.34,
+              height: size * 0.34,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: v.bg0,
+                border: Border.all(color: v.lineStrong),
+              ),
+              child: Icon(
+                Icons.lock_rounded,
+                size: size * 0.22,
+                color: v.text2,
+              ),
+            ),
+          ),
         ],
       );
     }
