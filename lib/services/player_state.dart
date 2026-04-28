@@ -274,6 +274,13 @@ class PlayerNotifier extends Notifier<PlayerState> {
     await p.setString(_kPrefsKey, json.encode(state.toJson()));
   }
 
+  /// Replace the state wholesale with a hydrated version (e.g. from cloud save).
+  /// Triggers a save to keep local in sync.
+  void hydrate(PlayerState newState) {
+    state = newState;
+    _save();
+  }
+
   /// Award XP + recompute level. Returns the new level (caller may animate).
   int addXp(int amount) {
     final newTotal = state.totalXpEarned + amount;

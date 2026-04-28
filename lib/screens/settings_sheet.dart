@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../services/auth_service.dart';
 import '../services/player_state.dart';
 import '../theme/app_radii.dart';
 import '../theme/app_text.dart';
 import '../theme/royal_velvet.dart';
+import 'modals.dart';
 
 class SettingsSheet extends ConsumerWidget {
   const SettingsSheet({super.key});
@@ -106,14 +108,25 @@ class SettingsSheet extends ConsumerWidget {
                     icon: Icons.person_outline_rounded,
                     label: 'Sign in',
                     trailing: 'Anonymous',
-                    onTap: () {},
+                    onTap: () {
+                      final auth = ref.read(authServiceProvider);
+                      showAccountLinkSheet(
+                        context,
+                        onGoogle: auth.linkWithGoogle,
+                        onApple: auth.linkWithApple,
+                      );
+                    },
                   ),
                   _row(
                     context,
                     icon: Icons.delete_outline_rounded,
                     label: 'Delete account',
                     danger: true,
-                    onTap: () {},
+                    onTap: () async {
+                      final auth = ref.read(authServiceProvider);
+                      await auth.deleteAccount();
+                      if (context.mounted) Navigator.of(context).pop();
+                    },
                   ),
                   const SizedBox(height: 18),
                   _section('About'),

@@ -10,6 +10,8 @@ import '../game/game_state.dart';
 import '../game/modes.dart';
 import '../game/share_grid.dart';
 import '../game/seeded_rng.dart';
+import '../services/cloud_save.dart';
+import '../services/leaderboard.dart';
 import '../services/player_state.dart';
 import '../theme/app_radii.dart';
 import '../theme/app_text.dart';
@@ -88,7 +90,21 @@ class _ResultSheetState extends ConsumerState<ResultSheet> {
     );
     if (widget.mode.id == 'daily') {
       p.recordDaily(didWin: won);
+      // Submit to leaderboard + push cloud save (silent).
+      final today = _utcToday();
+      final lb = ref.read(leaderboardProvider);
+      lb.submitDaily(
+        date: today,
+        guessesUsed: widget.gameState.activeRow + (won ? 1 : 0),
+        timeMs: widget.gameState.startedAt != null
+            ? DateTime.now()
+                .difference(widget.gameState.startedAt!)
+                .inMilliseconds
+            : 0,
+        solved: won,
+      );
     }
+    ref.read(cloudSaveProvider).push();
     if (mounted) {
       setState(() {
         _xpAwarded = xp;
@@ -96,6 +112,11 @@ class _ResultSheetState extends ConsumerState<ResultSheet> {
         _newLevel = lvl;
       });
     }
+  }
+
+  static String _utcToday() {
+    final t = DateTime.now().toUtc();
+    return '${t.year.toString().padLeft(4, '0')}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')}';
   }
 
   @override

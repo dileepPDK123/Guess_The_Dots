@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../services/auth_service.dart';
+import '../services/cloud_save.dart';
 import '../services/player_state.dart';
 import '../theme/app_text.dart';
 import '../theme/royal_velvet.dart';
@@ -26,15 +28,28 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1700),
     )..forward();
-    Future.delayed(const Duration(milliseconds: 2200), () {
-      if (!mounted) return;
-      final seen = ref.read(playerProvider).tutorialSeen;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => seen ? const HomeScreen() : const TutorialScreen(),
-        ),
-      );
-    });
+    _bootstrap();
+  }
+
+  Future<void> _bootstrap() async {
+    // Best-effort cloud bootstrap — never blocks navigation.
+    final auth = ref.read(authServiceProvider);
+    final cloud = ref.read(cloudSaveProvider);
+    try {
+      await auth.ensureAnonymous();
+      await cloud.pull();
+    } catch (_) {}
+
+    // Always wait at least 1.6s so the splash actually splashes.
+    final elapsed = _ctrl.duration!;
+    await Future.delayed(elapsed);
+    if (!mounted) return;
+    final seen = ref.read(playerProvider).tutorialSeen;
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => seen ? const HomeScreen() : const TutorialScreen(),
+      ),
+    );
   }
 
   @override
